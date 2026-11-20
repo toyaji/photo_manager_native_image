@@ -10,10 +10,10 @@ Pod::Spec.new do |s|
 Decodes PhotoKit thumbnails to RGBA on a worker queue and hands Flutter the
 pixel buffer, with no JPEG round trip.
                        DESC
-  s.homepage         = 'https://github.com/fluttercandies/flutter_photo_manager_plugins/tree/main/packages/photo_manager_native_image'
+  s.homepage         = 'https://github.com/toyaji/photo_manager_native_image'
   s.license          = { :type => 'Apache-2.0', :file => '../LICENSE' }
-  s.author           = { 'FlutterCandies' => 'fluttercandies@googlegroups.com' }
-  s.source           = { :http => 'https://github.com/fluttercandies/flutter_photo_manager_plugins' }
+  s.author           = { 'toyaji' => 'https://github.com/toyaji' }
+  s.source           = { :http => 'https://github.com/toyaji/photo_manager_native_image' }
 
   s.source_files = "#{package_name}/Sources/#{package_name}/**/*.{swift,h,m}"
 

@@ -1,16 +1,121 @@
 # photo_manager_native_image
 
-Load `photo_manager` thumbnails as **native RGBA pixels**. The platform decodes
-the asset, hands Flutter a `malloc` pointer, and Flutter uploads the pixels
-through `ImageDescriptor.raw`. No JPEG is encoded or decoded between the photo
-library and the screen.
+[![pub package](https://img.shields.io/pub/v/photo_manager_native_image.svg)](https://pub.dev/packages/photo_manager_native_image)
+[![pub points](https://img.shields.io/pub/points/photo_manager_native_image)](https://pub.dev/packages/photo_manager_native_image/score)
+[![CI](https://github.com/toyaji/photo_manager_native_image/actions/workflows/photo_manager_native_image.yml/badge.svg)](https://github.com/toyaji/photo_manager_native_image/actions/workflows/photo_manager_native_image.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/toyaji/photo_manager_native_image/blob/main/LICENSE)
+
+Fast, cancellable thumbnails for photo library grids. Show an
+[`AssetEntity`](https://pub.dev/documentation/photo_manager/latest/photo_manager/AssetEntity-class.html)
+from [`photo_manager`](https://pub.dev/packages/photo_manager) as **native
+RGBA pixels** — no JPEG is encoded or decoded between the photo library and
+the screen.
+
+`photo_manager` hands Flutter thumbnail *bytes*: the platform decodes the
+photo, re-encodes it as JPEG, copies it across the method channel, and Flutter
+decodes it again — two decodes and two copies per grid cell, with no way to
+cancel. This package decodes once on the platform, straight to RGBA, and gives
+Flutter a pointer to the pixels.
+
+![Pipeline: photo_manager re-encodes to JPEG; this package hands over RGBA pixels](https://raw.githubusercontent.com/toyaji/photo_manager_native_image/main/doc/images/pipeline-comparison.svg)
 
 ```dart
-// size is the pixel length of the shorter side. Which sizes an app uses,
-// and how many, is the app's decision.
 Image(image: NativeImageProvider(asset, size: 320), fit: BoxFit.cover);
 
-// Or the convenience widget.
+// or the convenience widget
+NativeAssetImage(asset, size: 320, fit: BoxFit.cover);
+```
+
+## Features
+
+- **One decode, one copy.** Pixels go from the platform decoder to
+  `ImageDescriptor.raw` through `dart:ffi`; nothing is re-encoded.
+- **Cancellable.** A cell scrolled away before its pixels arrive stops its
+  native work. `imageCache.clear()` never blanks a visible cell.
+- **Memory-bounded.** Decoded to the size you ask for, panoramas capped,
+  native buffers freed on every path.
+- **iCloud aware** on iOS: local first, then one low-priority download only
+  when needed, and a typed error when it fails.
+- **Sharp on Android.** Large sizes decode from the original instead of the
+  soft system thumbnail; the switch-over size is yours to choose.
+- **HDR photos.** An optional view applies the gain map of Apple HDR and
+  Ultra HDR photos on HDR displays.
+- **Drop-in.** A plain `ImageProvider` and an `Image` widget shaped like
+  `photo_manager_image_provider`'s.
+
+| | Android | iOS |
+|---|---|---|
+| Minimum version | API 26 | iOS 13 |
+| Decoder | `ImageDecoder` (API 29+), `BitmapFactory` (API 26–28) | `PHImageManager` + `vImage` |
+| JPEG round trips | 0 | 0 |
+
+macOS, web and desktop are not supported.
+
+## Getting started
+
+### 1. Install
+
+```sh
+flutter pub add photo_manager photo_manager_native_image
+```
+
+Flutter 3.24 or later is required. Building iOS with Swift Package Manager
+needs Flutter 3.44; on older Flutter keep the app on CocoaPods. See
+[Requirements](#requirements).
+
+### 2. Set up photo library access
+
+The package reads the library through `photo_manager`, so the app needs the
+platform setup `photo_manager` describes in its
+[README](https://pub.dev/packages/photo_manager#prepare-for-use):
+`READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` (Android 13+) or
+`READ_EXTERNAL_STORAGE` (Android 12 and below) in `AndroidManifest.xml`, and
+`NSPhotoLibraryUsageDescription` in iOS `Info.plist`.
+
+### 3. Ask for permission, then show the grid
+
+The package never asks for permission itself:
+
+```dart
+final PermissionState ps = await PhotoManager.requestPermissionExtend();
+if (!ps.hasAccess) return;
+
+final List<AssetPathEntity> paths = await PhotoManager.getAssetPathList();
+final List<AssetEntity> assets =
+    await paths.first.getAssetListPaged(page: 0, size: 200);
+
+GridView.builder(
+  gridDelegate:
+      const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4),
+  itemCount: assets.length,
+  itemBuilder: (context, i) =>
+      NativeAssetImage(assets[i], size: 256, fit: BoxFit.cover),
+);
+```
+
+A pinch-to-zoom grid with a live instrumentation panel is in the
+[example app](https://github.com/toyaji/photo_manager_native_image/tree/main/example).
+
+## Usage
+
+### Choose a size
+
+`size` is the pixel length of the **shorter** side, so a 320 request for a
+4:3 photo yields about 427 × 320. For a grid cell, ask for the cell's size in
+physical pixels and draw with `BoxFit.cover`:
+
+```dart
+final int size =
+    (cellWidth * MediaQuery.devicePixelRatioOf(context)).round();
+```
+
+Every distinct size is a separate decode and cache entry, so a grid that
+pinches between column counts does better with a few fixed sizes than with
+one per layout.
+
+### Handle errors
+
+```dart
 NativeAssetImage(
   asset,
   size: 320,
@@ -24,255 +129,125 @@ NativeAssetImage(
 );
 ```
 
-| | Android | iOS |
-|---|---|---|
-| Source | MediaStore system thumbnail through `ImageDecoder` (images up to `androidOriginalDecodeAbove`, 256 px by default, with the original when the thumbnail is smaller than asked; videos ≤ 768 px, kept even when smaller), `ImageDecoder` on the original above; `MediaStore.*.Thumbnails` + `BitmapFactory` with orientation fix on API 26–28 | `PHImageManager.requestImage(.aspectFill, .highQualityFormat, .fast)` on a worker queue, `vImage` downscale |
-| Pixels handed over | `ARGB_8888` → JNI `malloc` | RGBA8888 → `malloc` |
-| JPEG round trips | **0** | **0** |
-| Extra framework | none | `Photos`, `Accelerate` |
-| Minimum OS | API 26 | iOS 13 |
-
-## How it differs from `photo_manager_image_provider`
-
-![Pipeline comparison](doc/images/pipeline-comparison.svg)
-
-`AssetEntityImageProvider` asks `photo_manager` for thumbnail *bytes*. The
-platform decodes the asset, re-encodes it as JPEG (quality 95 on iOS), copies
-the bytes across the method channel, and Flutter decodes the JPEG again. For a
-grid that is two decodes and two copies per cell, and the request cannot be
-cancelled once it has been sent.
-
-This package keeps the pixels native. The platform decodes once, straight to
-premultiplied RGBA, and sends back four integers: pointer, width, height, row
-bytes. Dart copies the buffer into an `ImmutableBuffer`, frees the pointer, and
-builds the image from the raw descriptor. There is no codec on the Dart side.
-
-| | `AssetEntityImageProvider` | `NativeImageProvider` |
-|---|---|---|
-| Wire format | JPEG / PNG bytes | pointer to RGBA |
-| Decodes | 2 (native + Dart) | 1 (native) |
-| Copies | 2 (channel + engine) | 1 (`ImmutableBuffer`) |
-| Cancellation | none | before the buffer is allocated |
-| Sizing | `ThumbnailSize(width, height)` box | `size` = shorter side |
-| Cache key | id, size, format, original flag | id, modified date, size, isVideo, `androidOriginalDecodeAbove` |
-| Errors | `StateError` / platform message | `NativeImageException(code)` |
-| iCloud | downloads inline, blocking the request | local first, then one low-priority network attempt only when needed |
-
-Both providers are plain `ImageProvider`s and can coexist in one app.
-
-## Request lifecycle
-
-![Request lifecycle](doc/images/request-lifecycle.svg)
-
-1. An `Image` widget resolves the provider. The key is the provider itself:
-   `(entity.id, modifiedDateSecond ?? createDateSecond, size, isVideo, androidOriginalDecodeAbove)`.
-2. `ImageCache.putIfAbsent` finds no entry and asks the provider for a
-   completer. The cache attaches its own listener first; the widget's listener
-   is attached right after. The completer remembers which one is the cache's.
-3. The completer starts a request with a fresh `requestId` and sends it over
-   the Pigeon channel.
-4. The platform puts the request on a worker queue. Nothing blocks the platform
-   thread.
-5. A worker decodes, converts to RGBA, and allocates a `malloc` buffer. From
-   this point the request cannot be cancelled: the buffer is Dart's to free.
-6. The platform replies exactly once. Dart copies the buffer into an
-   `ImmutableBuffer`, frees the pointer on every path (success, cancel, error),
-   and hands the frame to the completer. `ImageCache` keeps it; the widget
-   paints it.
-
-**C — cancellation.** When the completer's last *widget* listener leaves and
-no image has arrived, it sends `cancelRequest(requestId)` and evicts the key
-from `ImageCache`. On the platform, a request that has not reached step 5 is
-dropped and replies `null`; one that has already allocated still replies with
-the buffer, which Dart frees and discards.
-
-What a cancel stops depends on where the request is:
-
-| Request state | On cancel |
+| Code | Meaning |
 |---|---|
-| Waiting in the queue | Dropped; no work is done |
-| Decoding a local asset | Runs to the end (milliseconds); the result is discarded |
-| Downloading from iCloud (iOS, network attempt) | The download is cancelled and the slot freed immediately |
+| `notFound` | The asset no longer exists |
+| `icloudNotDownloaded` | iOS: only in iCloud and the download failed, for example offline |
+| `decodeFailed` | The platform could not produce pixels (on Android this includes a revoked permission) |
 
-Local decodes are not interrupted on purpose: measured on devices, stopping them
-saved little worker time and did not change queue wait or decode time.
+A failed image is evicted from `ImageCache`, so the next build tries again.
 
-Two situations look like "the last listener left" but are not:
+### Sharpness vs. speed on Android
 
-- `imageCache.clear()` (memory pressure) detaches only the cache's listener.
-  The widget is still on screen, so the request keeps going.
-- A cache listener that detaches synchronously inside `addListener` (the
-  completer already had an image) never counted as a waiter.
-
-The completer tells these apart because it locked in the first listener as the
-cache's in step 2. `imageCache.clear()` therefore never produces a blank cell,
-and a scrolled-away cell always stops its native work.
-
-## Who owns what
-
-![Ownership](doc/images/ownership.svg)
-
-The package owns everything between "this key needs pixels" and "here is a
-frame". The app owns every policy decision above that.
-
-| Concern | Owner | Notes |
-|---|---|---|
-| Which pixel sizes exist | App | e.g. 128 for dense grids, 320 for 2–6 columns. Pass the number; the package does not define tiers. |
-| How many requests are in flight | App | Driven by `cacheExtent`, layout changes during a pinch, prefetching. The package queues whatever it is asked and cancels what stops being needed; it does not throttle. |
-| `ImageCache` budget and `clear()` policy | App | The package uses the app's `PaintingBinding.imageCache` and nothing else. No second cache, no disk cache. |
-| Error UI | App | `errorBuilder` receives `NativeImageException`. |
-| iCloud fallback | Package | Local first, then one network attempt on the low-priority queue only when PhotoKit needs it. Nothing to configure. |
-| Cache key | Package | Edited assets get a new key through the modified date. The network attempt fills the same slot as the local one. |
-| Cancellation | Package | Listener tracking in the completer, `cancelRequest` on the channel, `evict(key)` so the next resolve starts fresh. A failed load is evicted too, like `NetworkImage`. |
-| Native worker queues | Package | iOS: `OperationQueue` at `userInitiated`, cores × 2; a second queue at `utility` with 2 slots for network attempts. Android: fixed pool of cores / 2 + 1. |
-| Buffer lifetime | Package | Exactly one reply per request, tracked by a `done` flag. Dart frees on every path. No finalizer, so no double free. |
-| Photo daemon reconnect (iOS) | Package | An XPC interruption evicts the cached `PHAsset` and retries once. |
-
-If a number in the "Native worker queues" row feels wrong for your app, that is
-a sign the app is sending too many requests, not that the queue needs a knob.
-The example app's `maxInflight` counter shows the depth the app reached.
-
-## Sizing
-
-`size` is the pixel length of the **shorter** side after aspect-fill, so a
-320 request for a 4:3 photo yields about 427 × 320. The platform never
-upscales. If it returns something larger than asked (PhotoKit's `.fast`
-resize can), Dart scales it down once through `instantiateCodec`.
-
-Very wide or tall images are also capped at `size² × 4` pixels, so a 1024
-request for an 8000 × 1000 panorama yields 5793 × 724 instead of the full
-32 MB bitmap.
-
-On Android 10 and later an image at or below `androidOriginalDecodeAbove`
-(256 px by default) comes from the MediaStore system thumbnail, which is
-fast; above it the original is decoded, which is sharper but costs more per
-image. The system thumbnail is a recompressed JPEG and looks soft at larger
-sizes. Raise the value to favour speed, or pass `0` to always decode the
-original:
+On Android 10+ small sizes come from the MediaStore system thumbnail, which is
+fast but a recompressed JPEG; larger sizes decode the original, which is
+sharper but costs more per image. `androidOriginalDecodeAbove` sets where that
+switch happens — 256 px by default:
 
 ```dart
+// Favour speed: use the system thumbnail up to 512 px.
 NativeAssetImage(asset, size: 400, androidOriginalDecodeAbove: 512);
+
+// Favour sharpness: always decode the original.
+NativeAssetImage(asset, size: 200, androidOriginalDecodeAbove: 0);
 ```
 
-Videos ignore it: up to 768 px they keep the system thumbnail even when it is
-smaller than asked, because a frame read from the video itself can be a
-different frame, and one video must show one picture at every size. Above
-768 px the frame is read from the video.
+Videos and iOS ignore it.
 
-Wide-gamut photos (Display P3) are converted to sRGB on both platforms,
-because Flutter reads the raw pixels as sRGB.
+### HDR photos
 
-For a square grid cell, ask for the cell's pixel size and draw with
-`BoxFit.cover`. For a dense grid a smaller size over a shared base layer is
-cheaper than one size per column count, because the key never changes during
-a pinch.
-
-## Errors
-
-`errorBuilder` receives a `NativeImageException` with a typed
-`NativeImageErrorCode`:
-
-| Code | Meaning | Typical handling |
-|---|---|---|
-| `notFound` | The asset no longer exists | Drop the cell, refresh the album |
-| `icloudNotDownloaded` | iOS only: the asset is in iCloud and the download did not succeed (for example offline) | Show a cloud placeholder |
-| `decodeFailed` | The platform could not produce pixels | Broken-image placeholder |
-
-On Android, a missing or revoked photo permission has no code of its own and
-arrives as `decodeFailed`; check access with `photo_manager` before building
-the grid.
-
-A failed key is evicted from `ImageCache`, so the next resolve of the same
-provider sends a new request.
-
-## Instrumentation
-
-The example app has a panel that counts requests, completions, cancels,
-failures, in-flight depth, request-to-frame latency, and live native buffers.
-Live buffers must read 0 whenever the app is idle; anything else is a leak. A
-button forces `PaintingBinding.handleMemoryPressure()` so the cancellation
-rules can be checked on a device. These counters are package internals and not
-part of the public API.
-
-## iCloud (iOS)
-
-Nothing to configure. A request first asks PhotoKit for a local result. If
-the asset is only in iCloud and the requested size needs the original, one
-more request follows with network access, on a low-priority queue with two
-slots, so downloads never block on-screen thumbnails. The frame fills the same
-cache key. If the download fails too (for example offline), the request ends
-with `icloudNotDownloaded`.
-
-Small sizes usually never reach the network: in our tests an iPhone answered
-iCloud-only photos up to about 360 px on the shorter side from the on-device
-preview, even offline. On Android all MediaStore assets are local.
-
-## Requirements
-
-| | Minimum | Checked in CI |
-|---|---|---|
-| Flutter | 3.24 | A new app built with 3.24.5 (APK, iOS through CocoaPods), and current stable |
-| iOS through Swift Package Manager | Flutter 3.44 | A new app built with 3.44.0, and current stable |
-| Android | API 26 | API 26, 28 and 34 emulators |
-| iOS | 13 | Simulator XCTest |
-
-- Call `PhotoManager.requestPermissionExtend()` before loading; the package
-  does not request permission.
-- Swift Package Manager builds need Flutter 3.44: they depend on the
-  `FlutterFramework` package, which Flutter generates from 3.41, and
-  `photo_manager` 3.12.0 only builds against it from 3.44. On older Flutter,
-  keep the app on CocoaPods with `disable-swift-package-manager: true` under
-  `flutter:` in the app's `pubspec.yaml`.
-- Flutter 3.24 is the oldest version checked; an app built with it loads
-  photos and videos on Android 16 and iOS 18.
-
-### Working on this package
-
-The package's own tests and code generation need a newer Flutter than apps
-do: `pigeon` 27 needs `meta` 1.18 (Flutter 3.44 or later). Apps that depend
-on the package do not resolve these tools.
-
-## HDR photos
-
-`NativeAssetImage` hands Flutter 8-bit sRGB pixels, so a gain map (Apple HDR
-HEIC, Ultra HDR JPEG) is not applied. Stack `NativeAssetHdrView` above the
-regular image to show the HDR version on HDR-capable displays:
+`NativeAssetImage` shows 8-bit sRGB pixels, so the gain map of an Apple HDR
+HEIC or Ultra HDR JPEG is not applied. Stack `NativeAssetHdrView` above it to
+show the HDR version on HDR displays:
 
 ```dart
 Stack(
   fit: StackFit.expand,
-  children: <Widget>[
-    NativeAssetImage(entity, size: 1080, fit: BoxFit.cover),
-    NativeAssetHdrView(entity, size: 1080),
+  children: [
+    NativeAssetImage(asset, size: 1080, fit: BoxFit.cover),
+    NativeAssetHdrView(asset, size: 1080),
   ],
-)
+);
 ```
 
-- The view is transparent for SDR photos, on iOS before 17, on Android before
-  14, and on any failure, so the image below always shows through.
-- It fills its box like `BoxFit.cover`, ignores pointers, and decodes the
-  shorter side to about `size` pixels (on Android, between `size` and twice
-  `size`, since it samples by powers of two). A new `size` or a modified asset
-  creates a new view.
-- Android only: HDR output needs the activity window in HDR color mode. The
-  plugin does not touch it; set it from the app, for example with
-  `window.colorMode = ActivityInfo.COLOR_MODE_HDR` while the view is shown.
+The view stays transparent for SDR photos, before iOS 17 / Android 14, and on
+failure, so the image below always shows. On Android the app must put the
+activity window in HDR color mode itself. Details:
+[HDR photos](https://github.com/toyaji/photo_manager_native_image/blob/main/doc/hdr.md).
 
-## Public API
+### iCloud (iOS)
 
-The public surface follows `photo_manager_image_provider`:
+Nothing to configure. A request first asks PhotoKit for a local result; only
+if the asset is in iCloud and the size needs the original does one more
+request download it, on a low-priority queue that never blocks on-screen
+thumbnails. Small sizes are usually served from the on-device preview even
+offline.
 
-| This package | photo_manager_image_provider |
+## API at a glance
+
+| Type | Role |
 |---|---|
-| `NativeImageProvider(entity, size:, androidOriginalDecodeAbove:)` | `AssetEntityImageProvider(entity, ...)` |
-| `NativeAssetImage(entity, size:, ...)`, an `Image` with the same parameters and defaults | `AssetEntityImage(entity, ...)` |
-| `NativeImageException` / `NativeImageErrorCode` | none; needed to tell an iCloud miss from other failures |
+| `NativeImageProvider(entity, size:, androidOriginalDecodeAbove:)` | The `ImageProvider`. Keyed by asset id, modified date, size and the Android threshold, so edited photos reload. |
+| `NativeAssetImage(entity, size:, ...)` | An `Image` with the same parameters and defaults as `AssetEntityImage`. |
+| `NativeAssetHdrView(entity, size:)` | Native view that draws the HDR version above a regular image. |
+| `NativeImageException`, `NativeImageErrorCode` | Typed failure passed to `errorBuilder`. |
 
-## Not in scope
+Full reference on
+[pub.dev](https://pub.dev/documentation/photo_manager_native_image/latest/).
 
-Disk caching, prefetching, cache partitioning, resolution tiers, and
-`photo_manager_image_provider` compatibility shims. Those belong to the app.
+## What your app owns
+
+The package turns "this asset at this size" into a frame and cleans up after
+itself. The app decides:
+
+- **Which sizes exist** and how many requests are in flight (`cacheExtent`,
+  prefetching, layout changes during a pinch). The package queues what it is
+  asked and cancels what is no longer needed; it does not throttle.
+- **The `ImageCache` budget.** The package uses `PaintingBinding.imageCache`
+  and adds no cache of its own, in memory or on disk.
+- **Error and loading UI.**
+
+Details: [ownership and internals](https://github.com/toyaji/photo_manager_native_image/blob/main/doc/ownership.md).
+
+## Requirements
+
+| | Minimum |
+|---|---|
+| Flutter | 3.24 (CocoaPods) / 3.44 (Swift Package Manager) |
+| Android | API 26 |
+| iOS | 13 (HDR view: iOS 17, Android 14) |
+| `photo_manager` | 3.x |
+
+- Swift Package Manager builds need the `FlutterFramework` package, which
+  `photo_manager` 3.12 builds against only from Flutter 3.44. On older Flutter
+  add `disable-swift-package-manager: true` under `flutter:` in the app's
+  `pubspec.yaml`.
+- CI builds a new app against both minimums and current stable on every push.
+
+## Not supported
+
+Disk caching, prefetching, resolution tiers and `photo_manager_image_provider`
+compatibility shims — those belong to the app. macOS, web and desktop.
+
+## Learn more
+
+- [How it works](https://github.com/toyaji/photo_manager_native_image/blob/main/doc/how-it-works.md) — request lifecycle, cancellation, sizing and iCloud in detail
+- [Ownership and internals](https://github.com/toyaji/photo_manager_native_image/blob/main/doc/ownership.md) — worker queues, buffer lifetime, instrumentation, tested configurations
+- [HDR photos](https://github.com/toyaji/photo_manager_native_image/blob/main/doc/hdr.md) — `NativeAssetHdrView` on iOS and Android
+- [Changelog](https://github.com/toyaji/photo_manager_native_image/blob/main/CHANGELOG.md)
+
+## Contributing
+
+Bug reports and pull requests are welcome on
+[GitHub](https://github.com/toyaji/photo_manager_native_image/issues).
+The package's own tests and code generation need Flutter 3.44 or later
+(`pigeon` 27 needs `meta` 1.18):
+
+```sh
+flutter test
+dart run pigeon --input pigeons/native_image_api.dart
+```
 
 ## License
 
-Apache-2.0.
+[Apache-2.0](https://github.com/toyaji/photo_manager_native_image/blob/main/LICENSE).

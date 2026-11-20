@@ -8,20 +8,14 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "packages/photo_manager_native_image/**"
-      - ".github/workflows/photo_manager_native_image.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "packages/photo_manager_native_image/**"
-      - ".github/workflows/photo_manager_native_image.yml"
 
 permissions: {}
 
 env:
-  PACKAGE_DIR: packages/photo_manager_native_image
+  PACKAGE_DIR: .
 
 jobs:
   dart:
