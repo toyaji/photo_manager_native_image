@@ -26,6 +26,7 @@ abstract class NativeImageChannel {
     required int height,
     required bool isVideo,
     required bool allowNetwork,
+    required int originalDecodeAbove,
   });
 
   /// See [NativeImageHostApi.cancelRequest].
@@ -47,6 +48,7 @@ class PigeonNativeImageChannel extends NativeImageChannel {
     required int height,
     required bool isVideo,
     required bool allowNetwork,
+    required int originalDecodeAbove,
   }) {
     return _api.requestImage(
       assetId,
@@ -55,6 +57,7 @@ class PigeonNativeImageChannel extends NativeImageChannel {
       height,
       isVideo,
       allowNetwork,
+      originalDecodeAbove,
     );
   }
 

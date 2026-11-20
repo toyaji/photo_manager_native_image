@@ -14,6 +14,8 @@ class NativeAssetImage extends Image {
   NativeAssetImage(
     AssetEntity entity, {
     required int size,
+    int androidOriginalDecodeAbove =
+        NativeImageProvider.defaultAndroidOriginalDecodeAbove,
     super.key,
     super.frameBuilder,
     super.loadingBuilder,
@@ -33,5 +35,11 @@ class NativeAssetImage extends Image {
     super.gaplessPlayback,
     super.isAntiAlias,
     super.filterQuality = FilterQuality.low,
-  }) : super(image: NativeImageProvider(entity, size: size));
+  }) : super(
+          image: NativeImageProvider(
+            entity,
+            size: size,
+            androidOriginalDecodeAbove: androidOriginalDecodeAbove,
+          ),
+        );
 }

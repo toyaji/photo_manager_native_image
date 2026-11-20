@@ -23,17 +23,18 @@ class ThumbnailMathTest {
     }
 
     @Test
-    fun imagesUseTheSystemThumbnailOnlyForSmallSizes() {
-        assertTrue(ThumbnailMath.triesSystemThumbnail(256, 256, isVideo = false))
-        assertFalse(ThumbnailMath.triesSystemThumbnail(257, 257, isVideo = false))
-        assertFalse(ThumbnailMath.triesSystemThumbnail(400, 400, isVideo = false))
+    fun imagesUseTheSystemThumbnailUpToTheRequestedSize() {
+        assertTrue(ThumbnailMath.triesSystemThumbnail(256, 256, isVideo = false, originalDecodeAbove = 256))
+        assertFalse(ThumbnailMath.triesSystemThumbnail(257, 257, isVideo = false, originalDecodeAbove = 256))
+        assertTrue(ThumbnailMath.triesSystemThumbnail(400, 400, isVideo = false, originalDecodeAbove = 512))
+        assertFalse(ThumbnailMath.triesSystemThumbnail(1, 1, isVideo = false, originalDecodeAbove = 0))
     }
 
     @Test
     fun videosUseTheSystemThumbnailUpToItsLargerLimit() {
-        assertTrue(ThumbnailMath.triesSystemThumbnail(720, 720, isVideo = true))
-        assertTrue(ThumbnailMath.triesSystemThumbnail(768, 768, isVideo = true))
-        assertFalse(ThumbnailMath.triesSystemThumbnail(769, 769, isVideo = true))
+        assertTrue(ThumbnailMath.triesSystemThumbnail(720, 720, isVideo = true, originalDecodeAbove = 0))
+        assertTrue(ThumbnailMath.triesSystemThumbnail(768, 768, isVideo = true, originalDecodeAbove = 0))
+        assertFalse(ThumbnailMath.triesSystemThumbnail(769, 769, isVideo = true, originalDecodeAbove = 1024))
     }
 
     @Test

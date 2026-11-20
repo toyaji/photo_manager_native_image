@@ -106,9 +106,13 @@ protocol NativeImageHostApi {
   /// Once a buffer is allocated the host always replies with it, even if a
   /// cancel arrived meanwhile: the Dart side owns the buffer and frees it.
   ///
+  /// Android 10+ decodes images whose longer requested side is above
+  /// [originalDecodeAbove] from the original instead of the MediaStore
+  /// system thumbnail; videos and iOS ignore it.
+  ///
   /// Errors use the codes `not_found`, `icloud_not_downloaded`, and
   /// `decode_failed`.
-  func requestImage(assetId: String, requestId: Int64, width: Int64, height: Int64, isVideo: Bool, allowNetwork: Bool, completion: @escaping (Result<[String: Int64]?, Error>) -> Void)
+  func requestImage(assetId: String, requestId: Int64, width: Int64, height: Int64, isVideo: Bool, allowNetwork: Bool, originalDecodeAbove: Int64, completion: @escaping (Result<[String: Int64]?, Error>) -> Void)
   /// Stops [requestId] if it has not allocated a buffer yet. A cancel that
   /// arrives before its request is remembered and applied when it does.
   func cancelRequest(requestId: Int64) throws
@@ -128,6 +132,10 @@ class NativeImageHostApiSetup {
     /// Once a buffer is allocated the host always replies with it, even if a
     /// cancel arrived meanwhile: the Dart side owns the buffer and frees it.
     ///
+    /// Android 10+ decodes images whose longer requested side is above
+    /// [originalDecodeAbove] from the original instead of the MediaStore
+    /// system thumbnail; videos and iOS ignore it.
+    ///
     /// Errors use the codes `not_found`, `icloud_not_downloaded`, and
     /// `decode_failed`.
     let requestImageChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.requestImage\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
@@ -140,7 +148,8 @@ class NativeImageHostApiSetup {
         let heightArg = args[3] as! Int64
         let isVideoArg = args[4] as! Bool
         let allowNetworkArg = args[5] as! Bool
-        api.requestImage(assetId: assetIdArg, requestId: requestIdArg, width: widthArg, height: heightArg, isVideo: isVideoArg, allowNetwork: allowNetworkArg) { result in
+        let originalDecodeAboveArg = args[6] as! Int64
+        api.requestImage(assetId: assetIdArg, requestId: requestIdArg, width: widthArg, height: heightArg, isVideo: isVideoArg, allowNetwork: allowNetworkArg, originalDecodeAbove: originalDecodeAboveArg) { result in
           switch result {
           case .success(let res):
             reply(wrapResult(res))

@@ -21,6 +21,29 @@ void main() {
     );
   });
 
+  test('the original-decode threshold is part of the key', () {
+    expect(
+      NativeImageProvider(entity(), size: 320),
+      isNot(
+        equals(
+          NativeImageProvider(
+            entity(),
+            size: 320,
+            androidOriginalDecodeAbove: 512,
+          ),
+        ),
+      ),
+    );
+  });
+
+  test('the original-decode threshold defaults to 256', () {
+    expect(
+      NativeImageProvider(entity(), size: 320).androidOriginalDecodeAbove,
+      NativeImageProvider.defaultAndroidOriginalDecodeAbove,
+    );
+    expect(NativeImageProvider.defaultAndroidOriginalDecodeAbove, 256);
+  });
+
   test('modified date is part of the key', () {
     expect(
       NativeImageProvider(entity(modifiedDate: 1), size: 320),

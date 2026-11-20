@@ -16,12 +16,13 @@ void main() {
   late int frees;
   late NativeImageMetrics metrics;
 
-  NativeImageRequest request({int size = 64}) {
+  NativeImageRequest request({int size = 64, int originalDecodeAbove = 256}) {
     return NativeImageRequest(
       channel: channel,
       assetId: 'a',
       size: size,
       isVideo: false,
+      androidOriginalDecodeAbove: originalDecodeAbove,
       free: (Pointer<Uint8> p) {
         frees++;
         malloc.free(p);
@@ -48,6 +49,14 @@ void main() {
     expect(metrics.liveBuffers, 0);
     expect(metrics.completed, 1);
     frame.image.dispose();
+  });
+
+  test('the original-decode threshold reaches the platform', () async {
+    final NativeImageRequest r = request(originalDecodeAbove: 512);
+    final Future<ui.FrameInfo?> future = r.load();
+    expect(channel.originalDecodeAboveOf[r.requestId], 512);
+    channel.reply(r.requestId, null);
+    expect(await future, isNull);
   });
 
   test('padded rows are honoured', () async {

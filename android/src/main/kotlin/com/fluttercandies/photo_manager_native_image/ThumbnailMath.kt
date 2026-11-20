@@ -8,13 +8,6 @@ import kotlin.math.sqrt
 /** Pure sizing and rotation rules shared by the decoders; unit-tested. */
 object ThumbnailMath {
     /**
-     * Largest image size for which the MediaStore system thumbnail is tried before the original.
-     * The system thumbnail is a recompressed JPEG, so above this size it looks soft next to
-     * the same size decoded from the original.
-     */
-    const val SYSTEM_THUMBNAIL_MAX = 256
-
-    /**
      * Largest video size for which the system thumbnail is used, even when it is smaller than
      * asked. The system thumbnail and [NativeImageDecoder]'s own frame can be different frames,
      * so mixing the two for one video swaps the picture between sizes.
@@ -66,9 +59,12 @@ object ThumbnailMath {
         return if (w >= h) Pair(w + 1, h) else Pair(w, h + 1)
     }
 
-    /** Whether the MediaStore system thumbnail is tried before decoding the source. */
-    fun triesSystemThumbnail(targetWidth: Int, targetHeight: Int, isVideo: Boolean): Boolean =
-        max(targetWidth, targetHeight) <= if (isVideo) SYSTEM_VIDEO_THUMBNAIL_MAX else SYSTEM_THUMBNAIL_MAX
+    /**
+     * Whether the MediaStore system thumbnail is tried before decoding the source. Images use
+     * it only up to [originalDecodeAbove], the caller's choice between speed and sharpness.
+     */
+    fun triesSystemThumbnail(targetWidth: Int, targetHeight: Int, isVideo: Boolean, originalDecodeAbove: Int): Boolean =
+        max(targetWidth, targetHeight) <= if (isVideo) SYSTEM_VIDEO_THUMBNAIL_MAX else originalDecodeAbove
 
     /**
      * Whether a system thumbnail of `width x height` is returned as is. A video keeps it even

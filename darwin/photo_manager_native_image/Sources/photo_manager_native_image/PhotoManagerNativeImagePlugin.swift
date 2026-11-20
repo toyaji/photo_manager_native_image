@@ -20,7 +20,7 @@ public class PhotoManagerNativeImagePlugin: NSObject, FlutterPlugin {
 extension PhotoManagerNativeImagePlugin: NativeImageHostApi {
     func requestImage(
         assetId: String, requestId: Int64, width: Int64, height: Int64,
-        isVideo: Bool, allowNetwork: Bool,
+        isVideo: Bool, allowNetwork: Bool, originalDecodeAbove: Int64,
         completion: @escaping (Result<[String: Int64]?, Error>) -> Void
     ) {
         loader.request(
