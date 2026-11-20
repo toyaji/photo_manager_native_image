@@ -38,10 +38,22 @@ class ThumbnailMathTest {
     }
 
     @Test
-    fun aSmallerSystemThumbnailIsKeptOnlyForVideos() {
-        assertTrue(ThumbnailMath.keepsSystemThumbnail(512, 384, 400, 400, isVideo = true))
-        assertFalse(ThumbnailMath.keepsSystemThumbnail(512, 384, 400, 400, isVideo = false))
-        assertTrue(ThumbnailMath.keepsSystemThumbnail(512, 384, 256, 256, isVideo = false))
+    fun videoFramesFollowTheSystemThumbnailRule() {
+        assertEquals(5_000_000L, ThumbnailMath.videoFrameTimeUs(29, 10_000L))
+        assertEquals(1_500L, ThumbnailMath.videoFrameTimeUs(34, 3L))
+        assertEquals(-1L, ThumbnailMath.videoFrameTimeUs(28, 10_000L))
+        assertEquals(-1L, ThumbnailMath.videoFrameTimeUs(34, 0L))
+    }
+
+    @Test
+    fun sameFrameToleratesRecompressionButNotAnotherPicture() {
+        val side = ThumbnailMath.FRAME_COMPARE_SIDE * ThumbnailMath.FRAME_COMPARE_SIDE
+        val red = ThumbnailMath.grey(IntArray(side) { 0xFFFF0000.toInt() })
+        val nearRed = ThumbnailMath.grey(IntArray(side) { 0xFFF00808.toInt() })
+        val blue = ThumbnailMath.grey(IntArray(side) { 0xFF0000FF.toInt() })
+        assertTrue(ThumbnailMath.sameFrame(red, nearRed))
+        assertFalse(ThumbnailMath.sameFrame(red, blue))
+        assertFalse(ThumbnailMath.sameFrame(red, red.copyOf(side - 1)))
     }
 
     @Test

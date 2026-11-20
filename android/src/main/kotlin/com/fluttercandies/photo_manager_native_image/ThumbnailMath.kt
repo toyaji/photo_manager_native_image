@@ -8,11 +8,16 @@ import kotlin.math.sqrt
 /** Pure sizing and rotation rules shared by the decoders; unit-tested. */
 object ThumbnailMath {
     /**
-     * Largest video size for which the system thumbnail is used, even when it is smaller than
-     * asked. The system thumbnail and [NativeImageDecoder]'s own frame can be different frames,
-     * so mixing the two for one video swaps the picture between sizes.
+     * Largest video size for which the system thumbnail is tried first. MediaStore keeps one
+     * thumbnail per video, fitted in half the screen's shorter side, so larger requests skip it.
      */
     const val SYSTEM_VIDEO_THUMBNAIL_MAX = 768
+
+    /** Side of the grey squares two pictures are compared at. */
+    const val FRAME_COMPARE_SIDE = 32
+
+    /** Mean grey difference (0–255) below which two pictures show the same frame. */
+    const val SAME_FRAME = 8.0
 
     /** Shorter side of a `MINI_KIND` thumbnail (512x384) in the worst case. */
     const val MINI_KIND_SHORTER = 384
@@ -67,11 +72,27 @@ object ThumbnailMath {
         max(targetWidth, targetHeight) <= if (isVideo) SYSTEM_VIDEO_THUMBNAIL_MAX else originalDecodeAbove
 
     /**
-     * Whether a system thumbnail of `width x height` is returned as is. A video keeps it even
-     * when it is smaller than asked, so that every size of one video shows the same frame.
+     * Time of the frame a video thumbnail shows, as `ThumbnailUtils.createVideoThumbnail` picks
+     * it on API 29+: the sync frame closest to half the duration. Below API 29 the system
+     * thumbnail is the retriever's representative frame, which `-1` selects; so is a video
+     * without a duration.
      */
-    fun keepsSystemThumbnail(width: Int, height: Int, targetWidth: Int, targetHeight: Int, isVideo: Boolean): Boolean =
-        isVideo || coversTarget(width, height, targetWidth, targetHeight)
+    fun videoFrameTimeUs(sdkInt: Int, durationMs: Long): Long =
+        if (sdkInt >= 29 && durationMs > 0) durationMs * 1000 / 2 else -1
+
+    /** Luma of ARGB pixels. */
+    fun grey(pixels: IntArray): IntArray = IntArray(pixels.size) { i ->
+        val p = pixels[i]
+        ((p shr 16 and 0xFF) * 299 + (p shr 8 and 0xFF) * 587 + (p and 0xFF) * 114) / 1000
+    }
+
+    /** Whether two grey squares of equal size show the same frame. */
+    fun sameFrame(a: IntArray, b: IntArray): Boolean {
+        if (a.size != b.size || a.isEmpty()) return false
+        var sum = 0L
+        for (i in a.indices) sum += kotlin.math.abs(a[i] - b[i])
+        return sum.toDouble() / a.size < SAME_FRAME
+    }
 
     /** Whether a decoded `width x height` reaches the requested shorter side. */
     fun coversTarget(width: Int, height: Int, targetWidth: Int, targetHeight: Int): Boolean =

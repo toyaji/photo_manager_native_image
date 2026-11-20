@@ -100,10 +100,15 @@ original:
 NativeAssetImage(asset, size: 400, androidOriginalDecodeAbove: 512);
 ```
 
-Videos ignore it: up to 768 px they keep the system thumbnail even when it is
-smaller than asked, because a frame read from the video itself can be a
-different frame, and one video must show one picture at every size. Above
-768 px the frame is read from the video.
+Videos ignore it. A video shows the same picture at every size and reaches
+the requested size. MediaStore keeps one thumbnail per video, fitted in half
+the screen's shorter side, so when it covers the request it is used as is;
+otherwise the picture is decoded from the video at the requested size, chosen
+the way the system thumbnail is: the cover art if the video has one, else the
+sync frame nearest half the duration (API 29+; older versions use the
+retriever's representative frame, as their thumbnails do). If that picture
+still differs from the system thumbnail, the thumbnail is kept, so one video
+never shows two pictures.
 
 Wide-gamut photos (Display P3) are converted to sRGB on both platforms,
 because Flutter reads the raw pixels as sRGB.

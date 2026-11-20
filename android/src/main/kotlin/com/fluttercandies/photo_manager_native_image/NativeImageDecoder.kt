@@ -18,6 +18,7 @@ import android.os.Bundle
 import android.provider.DocumentsContract
 import android.provider.MediaStore
 import java.io.FileNotFoundException
+import java.nio.ByteBuffer
 
 private val SRGB: ColorSpace = ColorSpace.get(ColorSpace.Named.SRGB)
 
@@ -55,21 +56,46 @@ class NativeImageDecoder(private val context: Context) {
 
     @TargetApi(Build.VERSION_CODES.Q)
     private fun decodeQ(uri: Uri, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): Bitmap {
+        var thumbnail: Bitmap? = null
         if (ThumbnailMath.triesSystemThumbnail(width, height, isVideo, originalDecodeAbove)) {
             // A cached system thumbnail can be unreadable; the source still is.
-            val thumbnail = try {
+            thumbnail = try {
                 decodeSystemThumbnail(uri, width, height)
             } catch (e: ImageDecoder.DecodeException) {
                 null
             }
-            if (thumbnail != null) {
-                if (ThumbnailMath.keepsSystemThumbnail(thumbnail.width, thumbnail.height, width, height, isVideo)) {
-                    return thumbnail
-                }
-                thumbnail.recycle()
+            if (thumbnail != null && ThumbnailMath.coversTarget(thumbnail.width, thumbnail.height, width, height)) {
+                return thumbnail
             }
         }
-        return if (isVideo) decodeVideoFrame(uri, width, height) else decodeOriginal(uri, width, height)
+        if (!isVideo) {
+            thumbnail?.recycle()
+            return decodeOriginal(uri, width, height)
+        }
+        val frame = decodeVideoFrame(uri, width, height)
+        if (thumbnail == null) return frame
+        // The frame follows the system thumbnail's rule, but a thumbnail made another way would
+        // swap the picture between sizes; a soft picture is the lesser defect.
+        if (sameFrame(thumbnail, frame)) {
+            thumbnail.recycle()
+            return frame
+        }
+        frame.recycle()
+        return thumbnail
+    }
+
+    private fun sameFrame(a: Bitmap, b: Bitmap): Boolean =
+        ThumbnailMath.sameFrame(greySquare(a), greySquare(b))
+
+    private fun greySquare(bitmap: Bitmap): IntArray {
+        val side = ThumbnailMath.FRAME_COMPARE_SIDE
+        val source = if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false) else bitmap
+        val small = Bitmap.createScaledBitmap(source, side, side, true)
+        val pixels = IntArray(side * side)
+        small.getPixels(pixels, 0, side, 0, 0, side, side)
+        if (small !== source) small.recycle()
+        if (source !== bitmap) source.recycle()
+        return ThumbnailMath.grey(pixels)
     }
 
     /**
@@ -130,13 +156,21 @@ class NativeImageDecoder(private val context: Context) {
     }
 
     /**
-     * A frame sized from the video's own dimensions, so the shorter side meets
-     * the target. Retriever frames are already upright.
+     * The picture the system thumbnail shows, sized from the video's own dimensions so the
+     * shorter side meets the target: on API 29+ the cover art if there is one, else the sync
+     * frame at half the duration, as `ThumbnailUtils` picks them. Retriever frames are upright.
      */
     private fun decodeVideoFrame(uri: Uri, width: Int, height: Int): Bitmap {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                retriever.embeddedPicture?.let { return decodeToTarget(ImageDecoder.createSource(ByteBuffer.wrap(it)), width, height) }
+            }
+            val timeUs = ThumbnailMath.videoFrameTimeUs(
+                Build.VERSION.SDK_INT,
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L,
+            )
             val box = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 ThumbnailMath.videoFrameBox(
                     retriever.intMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH),
@@ -149,9 +183,9 @@ class NativeImageDecoder(private val context: Context) {
                 null
             }
             val frame = if (box != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                retriever.getScaledFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, box.first, box.second)
+                retriever.getScaledFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, box.first, box.second)
             } else {
-                retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             }
             return frame ?: throw NativeImageException("decode_failed", "No frame for $uri")
         } finally {
