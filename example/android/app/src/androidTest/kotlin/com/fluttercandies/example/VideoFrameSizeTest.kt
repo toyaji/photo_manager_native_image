@@ -52,7 +52,7 @@ class VideoFrameSizeTest {
     }
 
     private fun assertSize(id: String, size: Int, landscape: Boolean) {
-        val bitmap = decoder.decode(id, size, size, isVideo = true)
+        val bitmap = decoder.decode(id, size, size, isVideo = true, originalDecodeAbove = 256)
         val d = "${bitmap.width}x${bitmap.height} for $size"
         assertEquals(d, size, minOf(bitmap.width, bitmap.height))
         assertEquals(d, landscape, bitmap.width > bitmap.height)
