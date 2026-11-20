@@ -78,10 +78,20 @@ class NativeImageHostApi {
   /// Once a buffer is allocated the host always replies with it, even if a
   /// cancel arrived meanwhile: the Dart side owns the buffer and frees it.
   ///
+  /// Android 10+ decodes images whose longer requested side is above
+  /// [originalDecodeAbove] from the original instead of the MediaStore
+  /// system thumbnail; videos and iOS ignore it.
+  ///
   /// Errors use the codes `not_found`, `icloud_not_downloaded`, and
   /// `decode_failed`.
-  Future<Map<String, int>?> requestImage(String assetId, int requestId,
-      int width, int height, bool isVideo, bool allowNetwork) async {
+  Future<Map<String, int>?> requestImage(
+      String assetId,
+      int requestId,
+      int width,
+      int height,
+      bool isVideo,
+      bool allowNetwork,
+      int originalDecodeAbove) async {
     final pigeonVar_channelName =
         'dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.requestImage$pigeonVar_messageChannelSuffix';
     final pigeonVar_channel = BasicMessageChannel<Object?>(
@@ -89,8 +99,16 @@ class NativeImageHostApi {
       pigeonChannelCodec,
       binaryMessenger: pigeonVar_binaryMessenger,
     );
-    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel.send(
-        <Object?>[assetId, requestId, width, height, isVideo, allowNetwork]);
+    final Future<Object?> pigeonVar_sendFuture = pigeonVar_channel
+        .send(<Object?>[
+      assetId,
+      requestId,
+      width,
+      height,
+      isVideo,
+      allowNetwork,
+      originalDecodeAbove
+    ]);
     final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
 
     final Object? pigeonVar_replyValue = _extractReplyValueOrThrow(

@@ -24,13 +24,24 @@ class NativeImageProvider extends ImageProvider<NativeImageProvider> {
   NativeImageProvider(
     this.entity, {
     required this.size,
-  }) : assert(size > 0);
+    this.androidOriginalDecodeAbove = defaultAndroidOriginalDecodeAbove,
+  })  : assert(size > 0),
+        assert(androidOriginalDecodeAbove >= 0);
+
+  /// Default for [androidOriginalDecodeAbove].
+  static const int defaultAndroidOriginalDecodeAbove = 256;
 
   /// The asset to load.
   final AssetEntity entity;
 
   /// Pixel length of the shorter side of the decoded image.
   final int size;
+
+  /// Android 10+, images only: a [size] above this decodes from the original;
+  /// at or below it the MediaStore system thumbnail is used when it is large
+  /// enough. The system thumbnail is faster but a recompressed JPEG, so it
+  /// looks soft at larger sizes. `0` always decodes the original.
+  final int androidOriginalDecodeAbove;
 
   int get _modifiedDateSecond =>
       entity.modifiedDateSecond ?? entity.createDateSecond ?? 0;
@@ -52,6 +63,7 @@ class NativeImageProvider extends ImageProvider<NativeImageProvider> {
       assetId: entity.id,
       size: size,
       isVideo: _isVideo,
+      androidOriginalDecodeAbove: androidOriginalDecodeAbove,
     );
     return NativeImageStreamCompleter(
       load: request.load,
@@ -75,12 +87,18 @@ class NativeImageProvider extends ImageProvider<NativeImageProvider> {
         other.entity.id == entity.id &&
         other._modifiedDateSecond == _modifiedDateSecond &&
         other.size == size &&
-        other._isVideo == _isVideo;
+        other._isVideo == _isVideo &&
+        other.androidOriginalDecodeAbove == androidOriginalDecodeAbove;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(entity.id, _modifiedDateSecond, size, _isVideo);
+  int get hashCode => Object.hash(
+        entity.id,
+        _modifiedDateSecond,
+        size,
+        _isVideo,
+        androidOriginalDecodeAbove,
+      );
 
   @override
   String toString() =>

@@ -98,6 +98,7 @@ class NativeImageRequest {
     required this.assetId,
     required this.size,
     required this.isVideo,
+    required this.androidOriginalDecodeAbove,
     NativeBufferFree? free,
     NativeImageMetrics? metrics,
   })  : _free = free ?? debugNativeBufferFree ?? malloc.free,
@@ -114,6 +115,9 @@ class NativeImageRequest {
 
   /// Whether the asset is a video (Android picks the MediaStore table).
   final bool isVideo;
+
+  /// See `NativeImageProvider.androidOriginalDecodeAbove`.
+  final int androidOriginalDecodeAbove;
 
   final NativeBufferFree _free;
   final NativeImageMetrics _metrics;
@@ -185,6 +189,7 @@ class NativeImageRequest {
         height: size,
         isVideo: isVideo,
         allowNetwork: allowNetwork,
+        originalDecodeAbove: androidOriginalDecodeAbove,
       );
     } on PlatformException catch (exception) {
       throw nativeImageExceptionFromPlatform(exception);

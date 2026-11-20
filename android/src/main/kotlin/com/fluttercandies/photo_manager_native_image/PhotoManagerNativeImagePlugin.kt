@@ -55,6 +55,7 @@ class PhotoManagerNativeImagePlugin : FlutterPlugin, NativeImageHostApi {
         height: Long,
         isVideo: Boolean,
         allowNetwork: Boolean,
+        originalDecodeAbove: Long,
         callback: (Result<NativeImageReply?>) -> Unit,
     ) {
         val current = attachment ?: return callback(Result.success(null))
@@ -72,7 +73,7 @@ class PhotoManagerNativeImagePlugin : FlutterPlugin, NativeImageHostApi {
         try {
             current.executor.execute {
                 try {
-                    val result = produce(state, assetId, width.toInt(), height.toInt(), isVideo)
+                    val result = produce(state, assetId, width.toInt(), height.toInt(), isVideo, originalDecodeAbove.toInt())
                     registry.remove(requestId)
                     state.deliver(result, NativeBuffer::free)
                 } catch (t: Throwable) {
@@ -94,10 +95,11 @@ class PhotoManagerNativeImagePlugin : FlutterPlugin, NativeImageHostApi {
 
     private fun produce(
         state: RequestState, assetId: String, width: Int, height: Int, isVideo: Boolean,
+        originalDecodeAbove: Int,
     ): Result<NativeImageReply?> {
         if (state.isCancelled) return Result.success(null)
         val bitmap = try {
-            decoder.decode(assetId, width, height, isVideo)
+            decoder.decode(assetId, width, height, isVideo, originalDecodeAbove)
         } catch (e: NativeImageException) {
             return Result.failure(NativeImageError(e.code, e.message))
         }

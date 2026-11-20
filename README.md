@@ -26,7 +26,7 @@ NativeAssetImage(
 
 | | Android | iOS |
 |---|---|---|
-| Source | MediaStore system thumbnail through `ImageDecoder` (≤ 768 px, the original when the thumbnail is smaller than asked), `ImageDecoder` on the original above; `MediaStore.*.Thumbnails` + `BitmapFactory` with orientation fix on API 26–28 | `PHImageManager.requestImage(.aspectFill, .highQualityFormat, .fast)` on a worker queue, `vImage` downscale |
+| Source | MediaStore system thumbnail through `ImageDecoder` (images up to `androidOriginalDecodeAbove`, 256 px by default, with the original when the thumbnail is smaller than asked; videos ≤ 768 px, kept even when smaller), `ImageDecoder` on the original above; `MediaStore.*.Thumbnails` + `BitmapFactory` with orientation fix on API 26–28 | `PHImageManager.requestImage(.aspectFill, .highQualityFormat, .fast)` on a worker queue, `vImage` downscale |
 | Pixels handed over | `ARGB_8888` → JNI `malloc` | RGBA8888 → `malloc` |
 | JPEG round trips | **0** | **0** |
 | Extra framework | none | `Photos`, `Accelerate` |
@@ -54,7 +54,7 @@ builds the image from the raw descriptor. There is no codec on the Dart side.
 | Copies | 2 (channel + engine) | 1 (`ImmutableBuffer`) |
 | Cancellation | none | before the buffer is allocated |
 | Sizing | `ThumbnailSize(width, height)` box | `size` = shorter side |
-| Cache key | id, size, format, original flag | id, modified date, size, isVideo |
+| Cache key | id, size, format, original flag | id, modified date, size, isVideo, `androidOriginalDecodeAbove` |
 | Errors | `StateError` / platform message | `NativeImageException(code)` |
 | iCloud | downloads inline, blocking the request | local first, then one low-priority network attempt only when needed |
 
@@ -65,7 +65,7 @@ Both providers are plain `ImageProvider`s and can coexist in one app.
 ![Request lifecycle](doc/images/request-lifecycle.svg)
 
 1. An `Image` widget resolves the provider. The key is the provider itself:
-   `(entity.id, modifiedDateSecond ?? createDateSecond, size, isVideo)`.
+   `(entity.id, modifiedDateSecond ?? createDateSecond, size, isVideo, androidOriginalDecodeAbove)`.
 2. `ImageCache.putIfAbsent` finds no entry and asks the provider for a
    completer. The cache attaches its own listener first; the widget's listener
    is attached right after. The completer remembers which one is the cache's.
@@ -143,9 +143,21 @@ Very wide or tall images are also capped at `size² × 4` pixels, so a 1024
 request for an 8000 × 1000 panorama yields 5793 × 724 instead of the full
 32 MB bitmap.
 
-Videos follow the same rule. On Android, when the system thumbnail is
-smaller than the request, the frame is read from the video itself at the
-size its own dimensions call for.
+On Android 10 and later an image at or below `androidOriginalDecodeAbove`
+(256 px by default) comes from the MediaStore system thumbnail, which is
+fast; above it the original is decoded, which is sharper but costs more per
+image. The system thumbnail is a recompressed JPEG and looks soft at larger
+sizes. Raise the value to favour speed, or pass `0` to always decode the
+original:
+
+```dart
+NativeAssetImage(asset, size: 400, androidOriginalDecodeAbove: 512);
+```
+
+Videos ignore it: up to 768 px they keep the system thumbnail even when it is
+smaller than asked, because a frame read from the video itself can be a
+different frame, and one video must show one picture at every size. Above
+768 px the frame is read from the video.
 
 Wide-gamut photos (Display P3) are converted to sRGB on both platforms,
 because Flutter reads the raw pixels as sRGB.
@@ -252,7 +264,7 @@ The public surface follows `photo_manager_image_provider`:
 
 | This package | photo_manager_image_provider |
 |---|---|
-| `NativeImageProvider(entity, size:)` | `AssetEntityImageProvider(entity, ...)` |
+| `NativeImageProvider(entity, size:, androidOriginalDecodeAbove:)` | `AssetEntityImageProvider(entity, ...)` |
 | `NativeAssetImage(entity, size:, ...)`, an `Image` with the same parameters and defaults | `AssetEntityImage(entity, ...)` |
 | `NativeImageException` / `NativeImageErrorCode` | none; needed to tell an iCloud miss from other failures |
 

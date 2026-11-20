@@ -7,8 +7,12 @@ import kotlin.math.sqrt
 
 /** Pure sizing and rotation rules shared by the decoders; unit-tested. */
 object ThumbnailMath {
-    /** Largest size for which the MediaStore system thumbnail is tried before the original. */
-    const val SYSTEM_THUMBNAIL_MAX = 768
+    /**
+     * Largest video size for which the system thumbnail is used, even when it is smaller than
+     * asked. The system thumbnail and [NativeImageDecoder]'s own frame can be different frames,
+     * so mixing the two for one video swaps the picture between sizes.
+     */
+    const val SYSTEM_VIDEO_THUMBNAIL_MAX = 768
 
     /** Shorter side of a `MINI_KIND` thumbnail (512x384) in the worst case. */
     const val MINI_KIND_SHORTER = 384
@@ -54,6 +58,20 @@ object ThumbnailMath {
         val (w, h) = scaledSize(width, height, targetWidth, targetHeight) ?: Pair(width, height)
         return if (w >= h) Pair(w + 1, h) else Pair(w, h + 1)
     }
+
+    /**
+     * Whether the MediaStore system thumbnail is tried before decoding the source. Images use
+     * it only up to [originalDecodeAbove], the caller's choice between speed and sharpness.
+     */
+    fun triesSystemThumbnail(targetWidth: Int, targetHeight: Int, isVideo: Boolean, originalDecodeAbove: Int): Boolean =
+        max(targetWidth, targetHeight) <= if (isVideo) SYSTEM_VIDEO_THUMBNAIL_MAX else originalDecodeAbove
+
+    /**
+     * Whether a system thumbnail of `width x height` is returned as is. A video keeps it even
+     * when it is smaller than asked, so that every size of one video shows the same frame.
+     */
+    fun keepsSystemThumbnail(width: Int, height: Int, targetWidth: Int, targetHeight: Int, isVideo: Boolean): Boolean =
+        isVideo || coversTarget(width, height, targetWidth, targetHeight)
 
     /** Whether a decoded `width x height` reaches the requested shorter side. */
     fun coversTarget(width: Int, height: Int, targetWidth: Int, targetHeight: Int): Boolean =

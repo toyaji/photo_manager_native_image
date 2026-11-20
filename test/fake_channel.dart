@@ -11,6 +11,7 @@ class FakeChannel extends NativeImageChannel {
   final List<int> requested = <int>[];
   final List<int> cancelled = <int>[];
   final Map<int, bool> networkOf = <int, bool>{};
+  final Map<int, int> originalDecodeAboveOf = <int, int>{};
   final Map<int, Completer<Map<String, int>?>> pending =
       <int, Completer<Map<String, int>?>>{};
 
@@ -22,9 +23,11 @@ class FakeChannel extends NativeImageChannel {
     required int height,
     required bool isVideo,
     required bool allowNetwork,
+    required int originalDecodeAbove,
   }) {
     requested.add(requestId);
     networkOf[requestId] = allowNetwork;
+    originalDecodeAboveOf[requestId] = originalDecodeAbove;
     final Completer<Map<String, int>?> completer =
         Completer<Map<String, int>?>();
     pending[requestId] = completer;

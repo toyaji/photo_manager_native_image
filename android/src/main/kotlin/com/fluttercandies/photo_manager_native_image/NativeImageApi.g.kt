@@ -68,10 +68,14 @@ interface NativeImageHostApi {
    * Once a buffer is allocated the host always replies with it, even if a
    * cancel arrived meanwhile: the Dart side owns the buffer and frees it.
    *
+   * Android 10+ decodes images whose longer requested side is above
+   * [originalDecodeAbove] from the original instead of the MediaStore
+   * system thumbnail; videos and iOS ignore it.
+   *
    * Errors use the codes `not_found`, `icloud_not_downloaded`, and
    * `decode_failed`.
    */
-  fun requestImage(assetId: String, requestId: Long, width: Long, height: Long, isVideo: Boolean, allowNetwork: Boolean, callback: (Result<Map<String, Long>?>) -> Unit)
+  fun requestImage(assetId: String, requestId: Long, width: Long, height: Long, isVideo: Boolean, allowNetwork: Boolean, originalDecodeAbove: Long, callback: (Result<Map<String, Long>?>) -> Unit)
   /**
    * Stops [requestId] if it has not allocated a buffer yet. A cancel that
    * arrives before its request is remembered and applied when it does.
@@ -98,7 +102,8 @@ interface NativeImageHostApi {
             val heightArg = args[3] as Long
             val isVideoArg = args[4] as Boolean
             val allowNetworkArg = args[5] as Boolean
-            api.requestImage(assetIdArg, requestIdArg, widthArg, heightArg, isVideoArg, allowNetworkArg) { result: Result<Map<String, Long>?> ->
+            val originalDecodeAboveArg = args[6] as Long
+            api.requestImage(assetIdArg, requestIdArg, widthArg, heightArg, isVideoArg, allowNetworkArg, originalDecodeAboveArg) { result: Result<Map<String, Long>?> ->
               val error = result.exceptionOrNull()
               if (error != null) {
                 reply.reply(NativeImageApiPigeonUtils.wrapError(error))

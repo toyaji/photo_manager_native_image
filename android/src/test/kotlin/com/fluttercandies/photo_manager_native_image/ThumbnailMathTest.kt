@@ -23,6 +23,28 @@ class ThumbnailMathTest {
     }
 
     @Test
+    fun imagesUseTheSystemThumbnailUpToTheRequestedSize() {
+        assertTrue(ThumbnailMath.triesSystemThumbnail(256, 256, isVideo = false, originalDecodeAbove = 256))
+        assertFalse(ThumbnailMath.triesSystemThumbnail(257, 257, isVideo = false, originalDecodeAbove = 256))
+        assertTrue(ThumbnailMath.triesSystemThumbnail(400, 400, isVideo = false, originalDecodeAbove = 512))
+        assertFalse(ThumbnailMath.triesSystemThumbnail(1, 1, isVideo = false, originalDecodeAbove = 0))
+    }
+
+    @Test
+    fun videosUseTheSystemThumbnailUpToItsLargerLimit() {
+        assertTrue(ThumbnailMath.triesSystemThumbnail(720, 720, isVideo = true, originalDecodeAbove = 0))
+        assertTrue(ThumbnailMath.triesSystemThumbnail(768, 768, isVideo = true, originalDecodeAbove = 0))
+        assertFalse(ThumbnailMath.triesSystemThumbnail(769, 769, isVideo = true, originalDecodeAbove = 1024))
+    }
+
+    @Test
+    fun aSmallerSystemThumbnailIsKeptOnlyForVideos() {
+        assertTrue(ThumbnailMath.keepsSystemThumbnail(512, 384, 400, 400, isVideo = true))
+        assertFalse(ThumbnailMath.keepsSystemThumbnail(512, 384, 400, 400, isVideo = false))
+        assertTrue(ThumbnailMath.keepsSystemThumbnail(512, 384, 256, 256, isVideo = false))
+    }
+
+    @Test
     fun sampleSizeKeepsShorterSideAtLeastTarget() {
         assertEquals(1, ThumbnailMath.sampleSize(400, 300, 320))
         assertEquals(2, ThumbnailMath.sampleSize(4000, 700, 320))

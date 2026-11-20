@@ -27,7 +27,7 @@ class NativeImageException(val code: String, message: String) : Exception(messag
 class NativeImageDecoder(private val context: Context) {
     private val resolver: ContentResolver get() = context.contentResolver
 
-    fun decode(assetId: String, width: Int, height: Int, isVideo: Boolean): Bitmap {
+    fun decode(assetId: String, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): Bitmap {
         val id = assetId.toLongOrNull()
             ?: throw NativeImageException("not_found", "Not a MediaStore id: $assetId")
         val uri = ContentUris.withAppendedId(
@@ -37,7 +37,7 @@ class NativeImageDecoder(private val context: Context) {
         )
         val bitmap = try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                decodeQ(uri, width, height, isVideo)
+                decodeQ(uri, width, height, isVideo, originalDecodeAbove)
             } else {
                 decodeLegacy(id, uri, width, height, isVideo)
             }
@@ -54,8 +54,8 @@ class NativeImageDecoder(private val context: Context) {
     // MARK: API 29+
 
     @TargetApi(Build.VERSION_CODES.Q)
-    private fun decodeQ(uri: Uri, width: Int, height: Int, isVideo: Boolean): Bitmap {
-        if (maxOf(width, height) <= ThumbnailMath.SYSTEM_THUMBNAIL_MAX) {
+    private fun decodeQ(uri: Uri, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): Bitmap {
+        if (ThumbnailMath.triesSystemThumbnail(width, height, isVideo, originalDecodeAbove)) {
             // A cached system thumbnail can be unreadable; the source still is.
             val thumbnail = try {
                 decodeSystemThumbnail(uri, width, height)
@@ -63,7 +63,9 @@ class NativeImageDecoder(private val context: Context) {
                 null
             }
             if (thumbnail != null) {
-                if (ThumbnailMath.coversTarget(thumbnail.width, thumbnail.height, width, height)) return thumbnail
+                if (ThumbnailMath.keepsSystemThumbnail(thumbnail.width, thumbnail.height, width, height, isVideo)) {
+                    return thumbnail
+                }
                 thumbnail.recycle()
             }
         }

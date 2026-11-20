@@ -1,23 +1,3 @@
-## 0.2.0
-
-- `NativeAssetHdrView`: an opt-in native view that draws an image with its
-  gain map applied on HDR displays (iOS 17+ `UIImageView` with
-  `preferredImageDynamicRange: .high`; Android 14+ `ImageView` in a Hybrid
-  Composition platform view). It stays transparent for SDR photos, on older
-  OS versions and on failure, so it is meant to sit above a regular image.
-  The Android activity window must be in `COLOR_MODE_HDR`; the plugin does
-  not change it.
-- Android: `NativeAssetHdrView` checks for a gain map with a 1/16 decode
-  before the full one, so SDR photos are never decoded at full size; on API
-  35+ it scales the sampled bitmap down to `size` (kept unscaled if the gain
-  map would be lost); and it recycles its bitmap on dispose.
-- `NativeAssetHdrView` keeps the last three decoded HDR images (and remembers
-  assets without a gain map), so a page that comes back draws at once instead of
-  decoding the original again; the cache is cleared 10 s after the last view is
-  gone. A first decode fades in over 0.2 s instead of snapping over the base
-  image. On Android the cache owns its bitmaps, so views no longer recycle them.
-- Existing API unchanged.
-
 ## 0.1.0
 
 - `NativeImageProvider`, `NativeAssetImage`, `NativeImageException` /
@@ -41,3 +21,25 @@
 - Decoded pixels capped at `size² × 4`, so panoramas stay bounded.
 - Cancellation that recognises the `ImageCache` listener, so scrolled-away
   cells stop their native work without false cancels on `imageCache.clear()`.
+- Android: images larger than 256 px decode from the original instead of the
+  MediaStore system thumbnail, which is a recompressed JPEG and looks soft at
+  grid sizes. `androidOriginalDecodeAbove` on `NativeImageProvider` and
+  `NativeAssetImage` moves that size; it is part of the cache key. Videos keep
+  the system thumbnail up to 768 px, even when it is smaller than asked, so
+  every size of one video shows the same frame.
+- `NativeAssetHdrView`: an opt-in native view that draws an image with its
+  gain map applied on HDR displays (iOS 17+ `UIImageView` with
+  `preferredImageDynamicRange: .high`; Android 14+ `ImageView` in a Hybrid
+  Composition platform view). It stays transparent for SDR photos, on older
+  OS versions and on failure, so it is meant to sit above a regular image.
+  The Android activity window must be in `COLOR_MODE_HDR`; the plugin does
+  not change it.
+- Android: `NativeAssetHdrView` checks for a gain map with a 1/16 decode
+  before the full one, so SDR photos are never decoded at full size; on API
+  35+ it scales the sampled bitmap down to `size` (kept unscaled if the gain
+  map would be lost); and it recycles its bitmap on dispose.
+- `NativeAssetHdrView` keeps the last three decoded HDR images (and remembers
+  assets without a gain map), so a page that comes back draws at once instead of
+  decoding the original again; the cache is cleared 10 s after the last view is
+  gone. A first decode fades in over 0.2 s instead of snapping over the base
+  image. On Android the cache owns its bitmaps, so views no longer recycle them.

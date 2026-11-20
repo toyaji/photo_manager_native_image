@@ -29,6 +29,10 @@ abstract class NativeImageHostApi {
   /// Once a buffer is allocated the host always replies with it, even if a
   /// cancel arrived meanwhile: the Dart side owns the buffer and frees it.
   ///
+  /// Android 10+ decodes images whose longer requested side is above
+  /// [originalDecodeAbove] from the original instead of the MediaStore
+  /// system thumbnail; videos and iOS ignore it.
+  ///
   /// Errors use the codes `not_found`, `icloud_not_downloaded`, and
   /// `decode_failed`.
   @async
@@ -39,6 +43,7 @@ abstract class NativeImageHostApi {
     int height,
     bool isVideo,
     bool allowNetwork,
+    int originalDecodeAbove,
   );
 
   /// Stops [requestId] if it has not allocated a buffer yet. A cancel that
