@@ -48,7 +48,12 @@ class DecodePipeline(
                         state.frameAbandon = stage.abandon
                         state.frameTask = frameStage.execute(pixels, assetId, it)
                     }, state) { runFrame(state, stage) }
-                    if (!queued) stage.abandon()
+                    if (!queued) {
+                        stage.abandon()
+                    } else if (state.isCancelled) {
+                        // A cancel that came between the check above and the hand-off found no task to take back.
+                        takeBackFrame(state)
+                    }
                     // The frame stage replies.
                     null
                 }
@@ -68,10 +73,15 @@ class DecodePipeline(
             state.finish(Result.success(null))
             return
         }
+        takeBackFrame(state)
+    }
+
+    /** Answers [state] at once if its frame task is still waiting; otherwise the frame stage answers. */
+    private fun takeBackFrame(state: RequestState) {
         val frame = state.frameTask
         if (frame != null && frameStage.remove(frame)) {
             state.frameAbandon?.invoke()
-            registry.remove(requestId)
+            registry.remove(state.requestId)
             state.finish(Result.success(null))
         }
     }
