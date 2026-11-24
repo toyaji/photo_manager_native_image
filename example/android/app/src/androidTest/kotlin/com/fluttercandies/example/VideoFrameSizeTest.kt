@@ -2,6 +2,8 @@ package com.fluttercandies.example
 
 import android.content.ContentUris
 import android.graphics.Bitmap
+import android.media.MediaCodecList
+import android.media.MediaFormat
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -103,6 +105,10 @@ class VideoFrameSizeTest {
         assertTrue("expected a frame step, got $step", step is DecodeStep.NeedsFrame)
         step as DecodeStep.NeedsFrame
         assertTrue("4096x2160 is not marked large", step.large)
+        if (!decodesAvc(4096, 2160)) {
+            step.abandon()
+            assumeTrue("no H.264 decoder for 4096x2160 on this device", false)
+        }
         val bitmap = step.finish()
         assertEquals("${bitmap.width}x${bitmap.height}", 1080, minOf(bitmap.width, bitmap.height))
     }
@@ -113,6 +119,7 @@ class VideoFrameSizeTest {
      */
     @Test
     fun aLargeVideoStillShowsTheSystemThumbnailsFrame() {
+        assumeTrue("no H.264 decoder for 4096x2160 on this device", decodesAvc(4096, 2160))
         val id = video("dci_4k_middle_differs.mp4")
         val thumbnail = greySquare(systemThumbnail(id.toLong()))
         val step = decoder.decode(id, 720, 720, isVideo = true, originalDecodeAbove = 256)
@@ -133,6 +140,13 @@ class VideoFrameSizeTest {
             step.abandon()
         }
     }
+
+    /** Older emulators have no software decoder for 4096x2160, so neither a frame nor a thumbnail comes out. */
+    private fun decodesAvc(width: Int, height: Int): Boolean =
+        MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
+            !info.isEncoder && info.supportedTypes.any { it.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true) } &&
+                info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities?.isSizeSupported(width, height) == true
+        }
 
     @Suppress("DEPRECATION")
     private fun systemThumbnail(id: Long): Bitmap {
