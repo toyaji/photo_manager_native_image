@@ -42,7 +42,10 @@ Both providers are plain `ImageProvider`s and can coexist in one app.
 3. The completer starts a request with a fresh `requestId` and sends it over
    the Pigeon channel.
 4. The platform puts the request on a worker queue. Nothing blocks the platform
-   thread.
+   thread. On Android the queue starts waiting requests in request order, or in
+   the order the app chose with `NativeImageProvider.androidDecodeOrder`, with
+   assets named by a live `AndroidDecodePriority` first; a frame of a video with
+   more than 3840 × 2160 pixels then waits for a single frame thread.
 5. A worker decodes, converts to RGBA, and allocates a `malloc` buffer. From
    this point the request cannot be cancelled: the buffer is Dart's to free.
 6. The platform replies exactly once. Dart copies the buffer into an
@@ -60,7 +63,8 @@ What a cancel stops depends on where the request is:
 
 | Request state | On cancel |
 |---|---|
-| Waiting in the queue | Dropped; no work is done |
+| Waiting in the queue (Android, including the frame thread for videos above 3840 × 2160) | Taken out and answered at once; no work is done |
+| Waiting in the queue (iOS) | Answered when its turn comes, without decoding |
 | Decoding a local asset | Runs to the end (milliseconds); the result is discarded |
 | Downloading from iCloud (iOS, network attempt) | The download is cancelled and the slot freed immediately |
 

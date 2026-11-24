@@ -49,4 +49,14 @@ abstract class NativeImageHostApi {
   /// Stops [requestId] if it has not allocated a buffer yet. A cancel that
   /// arrives before its request is remembered and applied when it does.
   void cancelRequest(int requestId);
+
+  /// Asks the host to start pending requests for [assetIds] before others in
+  /// the same place of the decode order. Each call replaces the previous set
+  /// and an empty list clears it. The host may ignore the hint.
+  void setPriorityAssets(List<String> assetIds);
+
+  /// Sets the order in which the host starts waiting decodes: `0` in the order
+  /// requests arrive, `1` smallest request first and then the newest. Unknown
+  /// values are ignored. The host may ignore the call.
+  void setDecodeOrder(int order);
 }

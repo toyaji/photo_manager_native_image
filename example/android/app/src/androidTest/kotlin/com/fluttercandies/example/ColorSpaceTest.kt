@@ -82,7 +82,7 @@ class ColorSpaceTest {
     }
 
     private fun assertSrgbRed(size: Int) {
-        val bitmap = decoder.decode(insertP3Red(), size, size, isVideo = false, originalDecodeAbove = 256)
+        val bitmap = decoder.decodeBitmap(insertP3Red(), size, size, isVideo = false, originalDecodeAbove = 256)
         val (r, g, b) = centreBytes(bitmap)
         val message = "size $size: ($r, $g, $b) in ${bitmap.colorSpace}"
         assertTrue(message, abs(r - 250) <= 6 && abs(g - 31) <= 8 && abs(b - 14) <= 8)

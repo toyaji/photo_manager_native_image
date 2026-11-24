@@ -96,10 +96,10 @@ class LegacyDecodeTest {
      * never on API 26). Retry so the rotation assertions test rotation.
      */
     private fun decodeVideo(id: String, size: Int): Bitmap {
-        var bitmap = decoder.decode(id, size, size, isVideo = true, originalDecodeAbove = 256)
+        var bitmap = decoder.decodeBitmap(id, size, size, isVideo = true, originalDecodeAbove = 256)
         repeat(3) {
             if (!isAllBlack(bitmap)) return bitmap
-            bitmap = decoder.decode(id, size, size, isVideo = true, originalDecodeAbove = 256)
+            bitmap = decoder.decodeBitmap(id, size, size, isVideo = true, originalDecodeAbove = 256)
         }
         // A black MINI_KIND thumbnail is stored by MediaStore, so retrying cannot help;
         // the package returns it untouched, so there is no rotation left to check.
@@ -166,7 +166,7 @@ class LegacyDecodeTest {
     @Test
     fun imageThumbnailIsUpright() {
         val id = landscapeJpeg(rotated = true)
-        val bitmap = decoder.decode(id, 128, 128, isVideo = false, originalDecodeAbove = 256)
+        val bitmap = decoder.decodeBitmap(id, 128, 128, isVideo = false, originalDecodeAbove = 256)
         assertTrue("expected portrait, got ${bitmap.width}x${bitmap.height}", bitmap.height > bitmap.width)
         assertEquals(128, minOf(bitmap.width, bitmap.height))
         assertEquals(Bitmap.Config.ARGB_8888, bitmap.config)
@@ -176,7 +176,7 @@ class LegacyDecodeTest {
     fun imageFullDecodeIsUpright() {
         // Above the MINI_KIND size, so this goes through BitmapFactory.
         val id = landscapeJpeg(rotated = true)
-        val bitmap = decoder.decode(id, 512, 512, isVideo = false, originalDecodeAbove = 256)
+        val bitmap = decoder.decodeBitmap(id, 512, 512, isVideo = false, originalDecodeAbove = 256)
         assertEquals(300, bitmap.width)
         assertEquals(400, bitmap.height)
     }
@@ -184,7 +184,7 @@ class LegacyDecodeTest {
     @Test
     fun imageWithoutRotationStaysLandscape() {
         val id = landscapeJpeg(rotated = false)
-        val bitmap = decoder.decode(id, 512, 512, isVideo = false, originalDecodeAbove = 256)
+        val bitmap = decoder.decodeBitmap(id, 512, 512, isVideo = false, originalDecodeAbove = 256)
         assertEquals(400, bitmap.width)
         assertEquals(300, bitmap.height)
     }
@@ -220,16 +220,16 @@ class LegacyDecodeTest {
 
     @Test
     fun image180ThumbnailIsNotRotatedTwice() {
-        assertUpsideDown(decoder.decode(splitJpeg(180), 128, 128, isVideo = false, originalDecodeAbove = 256))
+        assertUpsideDown(decoder.decodeBitmap(splitJpeg(180), 128, 128, isVideo = false, originalDecodeAbove = 256))
     }
 
     @Test
     fun image180FullDecodeIsNotRotatedTwice() {
-        assertUpsideDown(decoder.decode(splitJpeg(180), 512, 512, isVideo = false, originalDecodeAbove = 256))
+        assertUpsideDown(decoder.decodeBitmap(splitJpeg(180), 512, 512, isVideo = false, originalDecodeAbove = 256))
     }
 
     @Test
     fun image90TurnsClockwise() {
-        assertTurnedClockwise(decoder.decode(splitJpeg(90), 128, 128, isVideo = false, originalDecodeAbove = 256))
+        assertTurnedClockwise(decoder.decodeBitmap(splitJpeg(90), 128, 128, isVideo = false, originalDecodeAbove = 256))
     }
 }

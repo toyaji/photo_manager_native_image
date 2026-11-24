@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -11,7 +12,11 @@ import 'package:photo_manager_native_image/photo_manager_native_image.dart';
 // ignore: implementation_imports
 import 'package:photo_manager_native_image/src/native_image_metrics.dart';
 
-void main() => runApp(const ExampleApp());
+void main() {
+  // The grid asks each cell for a 128 px base layer and a sharp main layer.
+  NativeImageProvider.androidDecodeOrder = AndroidDecodeOrder.smallestThenNewest;
+  runApp(const ExampleApp());
+}
 
 /// Column counts reachable by pinching.
 const List<int> kColumnSteps = <int>[2, 3, 4, 6, 10];
@@ -92,6 +97,8 @@ class _GalleryPageState extends State<GalleryPage> with WidgetsBindingObserver {
   bool _loadingMore = false;
   ProviderMode _mode = ProviderMode.native;
   final ScrollController _scrollController = ScrollController();
+  // Cells on screen sharpen before the rows prefetched by cacheExtent.
+  final AndroidDecodePriority _priority = AndroidDecodePriority();
   Drag? _drag;
 
   // Instrumentation.
@@ -130,8 +137,25 @@ class _GalleryPageState extends State<GalleryPage> with WidgetsBindingObserver {
     SchedulerBinding.instance.removeTimingsCallback(_timingsCallback);
     _panelTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    _priority.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _updatePriority(ScrollMetrics metrics, int columns) {
+    // A row is one cell plus the 1 px main-axis spacing of the grid below.
+    final double cell =
+        (MediaQuery.sizeOf(context).width - (columns - 1)) / columns + 1;
+    if (cell <= 1) {
+      return;
+    }
+    final int first = (metrics.pixels / cell).floor() * columns;
+    final int end =
+        ((metrics.pixels + metrics.viewportDimension) / cell).ceil() * columns;
+    _priority.update(<String>[
+      for (int i = math.max(0, first); i < math.min(end, _assets.length); i++)
+        _assets[i].id,
+    ]);
   }
 
   @override
@@ -418,11 +442,19 @@ class _GalleryPageState extends State<GalleryPage> with WidgetsBindingObserver {
       onScaleStart: _onScaleStart,
       onScaleUpdate: _onScaleUpdate,
       onScaleEnd: _onScaleEnd,
-      child: NotificationListener<ScrollNotification>(
+      // Layout changes (the first layout, a new column count, more assets)
+      // report metrics without a scroll.
+      child: NotificationListener<ScrollMetricsNotification>(
+        onNotification: (ScrollMetricsNotification notification) {
+          _updatePriority(notification.metrics, columns);
+          return false;
+        },
+        child: NotificationListener<ScrollNotification>(
         onNotification: (ScrollNotification notification) {
           if (notification.metrics.extentAfter < 600) {
             _loadMore();
           }
+          _updatePriority(notification.metrics, columns);
           return false;
         },
         child: GridView.builder(
@@ -441,6 +473,7 @@ class _GalleryPageState extends State<GalleryPage> with WidgetsBindingObserver {
           itemBuilder: (BuildContext context, int index) {
             return _Cell(asset: _assets[index], dense: dense, mode: _mode);
           },
+        ),
         ),
       ),
     );

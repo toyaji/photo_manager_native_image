@@ -24,11 +24,23 @@ private val SRGB: ColorSpace = ColorSpace.get(ColorSpace.Named.SRGB)
 
 class NativeImageException(val code: String, message: String) : Exception(message)
 
+/** What [NativeImageDecoder.decode] produced, or what is left to do. */
+sealed interface DecodeStep {
+    class Done(val bitmap: Bitmap) : DecodeStep
+
+    /**
+     * The picture has to come from a video frame. A retriever decodes the whole frame at the
+     * video's own size; when [large], the caller runs [finish] where such decodes are kept one
+     * at a time. [abandon] releases what was decoded so far when [finish] will not run.
+     */
+    class NeedsFrame(val large: Boolean, val finish: () -> Bitmap, val abandon: () -> Unit) : DecodeStep
+}
+
 /** Produces an upright `ARGB_8888` bitmap for a MediaStore id. */
 class NativeImageDecoder(private val context: Context) {
     private val resolver: ContentResolver get() = context.contentResolver
 
-    fun decode(assetId: String, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): Bitmap {
+    fun decode(assetId: String, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): DecodeStep {
         val id = assetId.toLongOrNull()
             ?: throw NativeImageException("not_found", "Not a MediaStore id: $assetId")
         val uri = ContentUris.withAppendedId(
@@ -36,26 +48,40 @@ class NativeImageDecoder(private val context: Context) {
             else MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             id,
         )
-        val bitmap = try {
+        val step = mapErrors {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 decodeQ(uri, width, height, isVideo, originalDecodeAbove)
             } else {
                 decodeLegacy(id, uri, width, height, isVideo)
             }
-        } catch (e: FileNotFoundException) {
-            throw NativeImageException("not_found", e.message ?: "Asset not found")
-        } catch (e: NativeImageException) {
-            throw e
-        } catch (e: Exception) {
-            throw NativeImageException("decode_failed", e.toString())
         }
-        return ensureArgb8888(downscale(bitmap, width, height))
+        return when (step) {
+            is DecodeStep.Done -> DecodeStep.Done(fit(step.bitmap, width, height))
+            is DecodeStep.NeedsFrame -> DecodeStep.NeedsFrame(
+                large = step.large,
+                finish = { fit(mapErrors(step.finish), width, height) },
+                abandon = step.abandon,
+            )
+        }
+    }
+
+    private fun fit(bitmap: Bitmap, width: Int, height: Int): Bitmap =
+        ensureArgb8888(downscale(bitmap, width, height))
+
+    private inline fun <T> mapErrors(block: () -> T): T = try {
+        block()
+    } catch (e: FileNotFoundException) {
+        throw NativeImageException("not_found", e.message ?: "Asset not found")
+    } catch (e: NativeImageException) {
+        throw e
+    } catch (e: Exception) {
+        throw NativeImageException("decode_failed", e.toString())
     }
 
     // MARK: API 29+
 
     @TargetApi(Build.VERSION_CODES.Q)
-    private fun decodeQ(uri: Uri, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): Bitmap {
+    private fun decodeQ(uri: Uri, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): DecodeStep {
         var thumbnail: Bitmap? = null
         if (ThumbnailMath.triesSystemThumbnail(width, height, isVideo, originalDecodeAbove)) {
             // A cached system thumbnail can be unreadable; the source still is.
@@ -65,14 +91,52 @@ class NativeImageDecoder(private val context: Context) {
                 null
             }
             if (thumbnail != null && ThumbnailMath.coversTarget(thumbnail.width, thumbnail.height, width, height)) {
-                return thumbnail
+                return DecodeStep.Done(thumbnail)
             }
         }
         if (!isVideo) {
             thumbnail?.recycle()
-            return decodeOriginal(uri, width, height)
+            return DecodeStep.Done(decodeOriginal(uri, width, height))
         }
+        val large = isLargeVideo(uri)
+        if (!large || thumbnail == null) {
+            return DecodeStep.NeedsFrame(
+                large = large,
+                finish = { frameOrThumbnail(uri, width, height, thumbnail) },
+                abandon = { thumbnail?.recycle() },
+            )
+        }
+        // A large frame may wait behind others, so only the comparison sample is kept meanwhile.
+        val thumbnailGrey = greySquare(thumbnail)
+        thumbnail.recycle()
+        return DecodeStep.NeedsFrame(
+            large = true,
+            finish = { frameOrRereadThumbnail(uri, width, height, thumbnailGrey) },
+            abandon = {},
+        )
+    }
+
+    /** [frameOrThumbnail] for a thumbnail that was let go: it is read again only if the frame differs. */
+    @TargetApi(Build.VERSION_CODES.Q)
+    private fun frameOrRereadThumbnail(uri: Uri, width: Int, height: Int, thumbnailGrey: IntArray): Bitmap {
         val frame = decodeVideoFrame(uri, width, height)
+        if (ThumbnailMath.sameFrame(thumbnailGrey, greySquare(frame))) return frame
+        val thumbnail = try {
+            decodeSystemThumbnail(uri, width, height)
+        } catch (e: ImageDecoder.DecodeException) {
+            return frame
+        }
+        frame.recycle()
+        return thumbnail
+    }
+
+    private fun frameOrThumbnail(uri: Uri, width: Int, height: Int, thumbnail: Bitmap?): Bitmap {
+        val frame = try {
+            decodeVideoFrame(uri, width, height)
+        } catch (e: Exception) {
+            thumbnail?.recycle()
+            throw e
+        }
         if (thumbnail == null) return frame
         // The frame follows the system thumbnail's rule, but a thumbnail made another way would
         // swap the picture between sizes; a soft picture is the lesser defect.
@@ -137,22 +201,26 @@ class NativeImageDecoder(private val context: Context) {
 
     // MARK: API 26–28
 
-    private fun decodeLegacy(id: Long, uri: Uri, width: Int, height: Int, isVideo: Boolean): Bitmap {
+    private fun decodeLegacy(id: Long, uri: Uri, width: Int, height: Int, isVideo: Boolean): DecodeStep {
         val targetShorter = minOf(width, height)
         return if (isVideo) decodeLegacyVideo(id, uri, width, height, targetShorter)
-        else decodeLegacyImage(id, uri, targetShorter)
+        else DecodeStep.Done(decodeLegacyImage(id, uri, targetShorter))
     }
 
     /** MINI_KIND thumbnails already carry the rotation metadata on API 26–28. */
     @Suppress("DEPRECATION")
-    private fun decodeLegacyVideo(id: Long, uri: Uri, width: Int, height: Int, targetShorter: Int): Bitmap {
+    private fun decodeLegacyVideo(id: Long, uri: Uri, width: Int, height: Int, targetShorter: Int): DecodeStep {
         if (targetShorter <= ThumbnailMath.MINI_KIND_SHORTER) {
             MediaStore.Video.Thumbnails.getThumbnail(resolver, id, MediaStore.Video.Thumbnails.MINI_KIND, null)?.let {
-                if (ThumbnailMath.coversTarget(it.width, it.height, width, height)) return it
+                if (ThumbnailMath.coversTarget(it.width, it.height, width, height)) return DecodeStep.Done(it)
                 it.recycle()
             }
         }
-        return decodeVideoFrame(uri, width, height)
+        return DecodeStep.NeedsFrame(
+            large = isLargeVideo(uri),
+            finish = { decodeVideoFrame(uri, width, height) },
+            abandon = {},
+        )
     }
 
     /**
@@ -190,6 +258,18 @@ class NativeImageDecoder(private val context: Context) {
             return frame ?: throw NativeImageException("decode_failed", "No frame for $uri")
         } finally {
             retriever.release()
+        }
+    }
+
+    /** From MediaStore's recorded size. An unknown size, or a lookup that fails, counts as small. */
+    private fun isLargeVideo(uri: Uri): Boolean {
+        val columns = arrayOf(MediaStore.MediaColumns.WIDTH, MediaStore.MediaColumns.HEIGHT)
+        return try {
+            resolver.query(uri, columns, null, null, null)?.use { c ->
+                c.moveToFirst() && ThumbnailMath.isLargeFrame(c.getInt(0), c.getInt(1))
+            } ?: false
+        } catch (e: Exception) {
+            false
         }
     }
 

@@ -145,4 +145,15 @@ class ThumbnailMathTest {
         assertEquals(1080f / 2 + s * 3000f / 2, m[2], 1e-3f)
         assertEquals(1440f / 2 - s * 4000f / 2, m[5], 1e-3f)
     }
+
+    @Test
+    fun onlyFramesAbove4kAreLarge() {
+        assertTrue(ThumbnailMath.isLargeFrame(7680, 4320))
+        assertTrue(ThumbnailMath.isLargeFrame(4320, 7680))
+        assertFalse(ThumbnailMath.isLargeFrame(3840, 2160))
+        // DCI 4K has more pixels than UHD, so it counts as large.
+        assertTrue(ThumbnailMath.isLargeFrame(4096, 2160))
+        assertFalse(ThumbnailMath.isLargeFrame(1920, 1080))
+        assertFalse(ThumbnailMath.isLargeFrame(0, 0))
+    }
 }

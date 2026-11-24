@@ -10,6 +10,12 @@ import 'package:photo_manager_native_image/src/native_image_channel.dart';
 class FakeChannel extends NativeImageChannel {
   final List<int> requested = <int>[];
   final List<int> cancelled = <int>[];
+  final List<List<String>> priorityAssets = <List<String>>[];
+  final List<int> decodeOrders = <int>[];
+  final List<String> calls = <String>[];
+
+  /// When set, hint calls fail the way an unregistered plugin does.
+  bool failHints = false;
   final Map<int, bool> networkOf = <int, bool>{};
   final Map<int, int> originalDecodeAboveOf = <int, int>{};
   final Map<int, Completer<Map<String, int>?>> pending =
@@ -26,6 +32,7 @@ class FakeChannel extends NativeImageChannel {
     required int originalDecodeAbove,
   }) {
     requested.add(requestId);
+    calls.add('request');
     networkOf[requestId] = allowNetwork;
     originalDecodeAboveOf[requestId] = originalDecodeAbove;
     final Completer<Map<String, int>?> completer =
@@ -37,6 +44,24 @@ class FakeChannel extends NativeImageChannel {
   @override
   Future<void> cancelRequest(int requestId) async {
     cancelled.add(requestId);
+  }
+
+  @override
+  Future<void> setPriorityAssets(List<String> assetIds) async {
+    if (failHints) {
+      throw PlatformException(code: 'channel-error');
+    }
+    priorityAssets.add(assetIds);
+    calls.add('priority');
+  }
+
+  @override
+  Future<void> setDecodeOrder(int order) async {
+    if (failHints) {
+      throw PlatformException(code: 'channel-error');
+    }
+    decodeOrders.add(order);
+    calls.add('order');
   }
 
   void reply(int requestId, Map<String, int>? value) =>

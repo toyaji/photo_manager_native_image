@@ -58,7 +58,7 @@ class NativeBufferTest {
         val decoder = NativeImageDecoder(context)
         for (id in listOf("not-a-number", Long.MAX_VALUE.toString())) {
             try {
-                decoder.decode(id, 64, 64, isVideo = false, originalDecodeAbove = 256)
+                decoder.decodeBitmap(id, 64, 64, isVideo = false, originalDecodeAbove = 256)
                 fail("expected not_found for $id")
             } catch (e: NativeImageException) {
                 assertEquals("not_found", e.code)

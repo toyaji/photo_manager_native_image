@@ -13,6 +13,9 @@ object ThumbnailMath {
      */
     const val SYSTEM_VIDEO_THUMBNAIL_MAX = 768
 
+    /** Above this many pixels (3840 × 2160) a video frame decode holds hundreds of MB. */
+    const val LARGE_FRAME_PIXELS = 3840L * 2160L
+
     /** Side of the grey squares two pictures are compared at. */
     const val FRAME_COMPARE_SIDE = 32
 
@@ -93,6 +96,10 @@ object ThumbnailMath {
         for (i in a.indices) sum += kotlin.math.abs(a[i] - b[i])
         return sum.toDouble() / a.size < SAME_FRAME
     }
+
+    /** Whether a `width x height` video frame is large enough to be decoded one at a time. */
+    fun isLargeFrame(width: Int, height: Int): Boolean =
+        width.toLong() * height.toLong() > LARGE_FRAME_PIXELS
 
     /** Whether a decoded `width x height` reaches the requested shorter side. */
     fun coversTarget(width: Int, height: Int, targetWidth: Int, targetHeight: Int): Boolean =
