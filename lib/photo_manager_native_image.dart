@@ -6,6 +6,8 @@
 /// trip and cancellation that follows the Flutter image cache.
 library;
 
+export 'src/android_decode_order.dart' show AndroidDecodeOrder;
+export 'src/android_decode_priority.dart' show AndroidDecodePriority;
 export 'src/native_asset_hdr_view.dart' show NativeAssetHdrView;
 export 'src/native_asset_image.dart' show NativeAssetImage;
 export 'src/native_image_exception.dart'

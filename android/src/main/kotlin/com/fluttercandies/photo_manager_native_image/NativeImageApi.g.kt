@@ -81,6 +81,18 @@ interface NativeImageHostApi {
    * arrives before its request is remembered and applied when it does.
    */
   fun cancelRequest(requestId: Long)
+  /**
+   * Asks the host to start pending requests for [assetIds] before others in
+   * the same place of the decode order. Each call replaces the previous set
+   * and an empty list clears it. The host may ignore the hint.
+   */
+  fun setPriorityAssets(assetIds: List<String>)
+  /**
+   * Sets the order in which the host starts waiting decodes: `0` in the order
+   * requests arrive, `1` smallest request first and then the newest. Unknown
+   * values are ignored. The host may ignore the call.
+   */
+  fun setDecodeOrder(order: Long)
 
   companion object {
     /** The codec used by NativeImageHostApi. */
@@ -125,6 +137,42 @@ interface NativeImageHostApi {
             val requestIdArg = args[0] as Long
             val wrapped: List<Any?> = try {
               api.cancelRequest(requestIdArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              NativeImageApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.setPriorityAssets$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val assetIdsArg = args[0] as List<String>
+            val wrapped: List<Any?> = try {
+              api.setPriorityAssets(assetIdsArg)
+              listOf(null)
+            } catch (exception: Throwable) {
+              NativeImageApiPigeonUtils.wrapError(exception)
+            }
+            reply.reply(wrapped)
+          }
+        } else {
+          channel.setMessageHandler(null)
+        }
+      }
+      run {
+        val channel = BasicMessageChannel<Any?>(binaryMessenger, "dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.setDecodeOrder$separatedMessageChannelSuffix", codec)
+        if (api != null) {
+          channel.setMessageHandler { message, reply ->
+            val args = message as List<Any?>
+            val orderArg = args[0] as Long
+            val wrapped: List<Any?> = try {
+              api.setDecodeOrder(orderArg)
               listOf(null)
             } catch (exception: Throwable) {
               NativeImageApiPigeonUtils.wrapError(exception)

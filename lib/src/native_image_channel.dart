@@ -31,6 +31,12 @@ abstract class NativeImageChannel {
 
   /// See [NativeImageHostApi.cancelRequest].
   Future<void> cancelRequest(int requestId);
+
+  /// See [NativeImageHostApi.setPriorityAssets].
+  Future<void> setPriorityAssets(List<String> assetIds);
+
+  /// See [NativeImageHostApi.setDecodeOrder].
+  Future<void> setDecodeOrder(int order);
 }
 
 /// [NativeImageChannel] backed by the Pigeon host API.
@@ -63,4 +69,11 @@ class PigeonNativeImageChannel extends NativeImageChannel {
 
   @override
   Future<void> cancelRequest(int requestId) => _api.cancelRequest(requestId);
+
+  @override
+  Future<void> setPriorityAssets(List<String> assetIds) =>
+      _api.setPriorityAssets(assetIds);
+
+  @override
+  Future<void> setDecodeOrder(int order) => _api.setDecodeOrder(order);
 }

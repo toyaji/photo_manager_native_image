@@ -116,6 +116,14 @@ protocol NativeImageHostApi {
   /// Stops [requestId] if it has not allocated a buffer yet. A cancel that
   /// arrives before its request is remembered and applied when it does.
   func cancelRequest(requestId: Int64) throws
+  /// Asks the host to start pending requests for [assetIds] before others in
+  /// the same place of the decode order. Each call replaces the previous set
+  /// and an empty list clears it. The host may ignore the hint.
+  func setPriorityAssets(assetIds: [String]) throws
+  /// Sets the order in which the host starts waiting decodes: `0` in the order
+  /// requests arrive, `1` smallest request first and then the newest. Unknown
+  /// values are ignored. The host may ignore the call.
+  func setDecodeOrder(order: Int64) throws
 }
 
 /// Generated setup class from Pigeon to handle messages through the `binaryMessenger`.
@@ -177,6 +185,42 @@ class NativeImageHostApiSetup {
       }
     } else {
       cancelRequestChannel.setMessageHandler(nil)
+    }
+    /// Asks the host to start pending requests for [assetIds] before others in
+    /// the same place of the decode order. Each call replaces the previous set
+    /// and an empty list clears it. The host may ignore the hint.
+    let setPriorityAssetsChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.setPriorityAssets\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setPriorityAssetsChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let assetIdsArg = args[0] as! [String]
+        do {
+          try api.setPriorityAssets(assetIds: assetIdsArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setPriorityAssetsChannel.setMessageHandler(nil)
+    }
+    /// Sets the order in which the host starts waiting decodes: `0` in the order
+    /// requests arrive, `1` smallest request first and then the newest. Unknown
+    /// values are ignored. The host may ignore the call.
+    let setDecodeOrderChannel = FlutterBasicMessageChannel(name: "dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.setDecodeOrder\(channelSuffix)", binaryMessenger: binaryMessenger, codec: codec)
+    if let api = api {
+      setDecodeOrderChannel.setMessageHandler { message, reply in
+        let args = message as! [Any?]
+        let orderArg = args[0] as! Int64
+        do {
+          try api.setDecodeOrder(order: orderArg)
+          reply(wrapResult(nil))
+        } catch {
+          reply(wrapError(error))
+        }
+      }
+    } else {
+      setDecodeOrderChannel.setMessageHandler(nil)
     }
   }
 }

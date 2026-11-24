@@ -140,4 +140,48 @@ class NativeImageHostApi {
       isNullValid: true,
     );
   }
+
+  /// Asks the host to start pending requests for [assetIds] before others in
+  /// the same place of the decode order. Each call replaces the previous set
+  /// and an empty list clears it. The host may ignore the hint.
+  Future<void> setPriorityAssets(List<String> assetIds) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.setPriorityAssets$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture =
+        pigeonVar_channel.send(<Object?>[assetIds]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
+
+  /// Sets the order in which the host starts waiting decodes: `0` in the order
+  /// requests arrive, `1` smallest request first and then the newest. Unknown
+  /// values are ignored. The host may ignore the call.
+  Future<void> setDecodeOrder(int order) async {
+    final pigeonVar_channelName =
+        'dev.flutter.pigeon.photo_manager_native_image.NativeImageHostApi.setDecodeOrder$pigeonVar_messageChannelSuffix';
+    final pigeonVar_channel = BasicMessageChannel<Object?>(
+      pigeonVar_channelName,
+      pigeonChannelCodec,
+      binaryMessenger: pigeonVar_binaryMessenger,
+    );
+    final Future<Object?> pigeonVar_sendFuture =
+        pigeonVar_channel.send(<Object?>[order]);
+    final pigeonVar_replyList = await pigeonVar_sendFuture as List<Object?>?;
+
+    _extractReplyValueOrThrow(
+      pigeonVar_replyList,
+      pigeonVar_channelName,
+      isNullValid: true,
+    );
+  }
 }

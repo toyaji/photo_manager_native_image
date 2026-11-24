@@ -13,9 +13,14 @@ class PhotoManagerNativeImagePlugin : FlutterPlugin, NativeImageHostApi {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /** One engine attachment; a plugin instance can be attached again later. */
-    private class Attachment {
-        val executor: ExecutorService =
-            Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() / 2 + 1)
+    private class Attachment(registry: RequestRegistry) {
+        val decodeQueue = DecodeQueue(Runtime.getRuntime().availableProcessors() / 2 + 1)
+
+        // A retriever frame holds a decoder at the video's own size (an 8K frame is hundreds
+        // of MB), so frames of videos above 4K are decoded one at a time, apart from the pool.
+        val frameQueue = DecodeQueue(1)
+
+        val pipeline = DecodePipeline(registry, decodeQueue, frameQueue, NativeBuffer::free)
 
         // Read and written on the main thread only.
         var attached = true
@@ -26,7 +31,7 @@ class PhotoManagerNativeImagePlugin : FlutterPlugin, NativeImageHostApi {
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         decoder = NativeImageDecoder(binding.applicationContext)
-        attachment = Attachment()
+        attachment = Attachment(registry)
         NativeImageHostApi.setUp(binding.binaryMessenger, this)
         val hdr = Executors.newSingleThreadExecutor()
         hdrExecutor = hdr
@@ -38,10 +43,12 @@ class PhotoManagerNativeImagePlugin : FlutterPlugin, NativeImageHostApi {
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         NativeImageHostApi.setUp(binding.binaryMessenger, null)
-        registry.cancelAll().forEach { it.finish(Result.success(null)) }
-        attachment?.let {
-            it.attached = false
-            it.executor.shutdownNow()
+        val current = attachment
+        if (current == null) {
+            registry.cancelAll().forEach { it.finish(Result.success(null)) }
+        } else {
+            current.attached = false
+            current.pipeline.shutdown()
         }
         attachment = null
         hdrExecutor?.shutdownNow()
@@ -66,43 +73,42 @@ class PhotoManagerNativeImagePlugin : FlutterPlugin, NativeImageHostApi {
                 replyOrFree(result, current.attached, callback, NativeBuffer::free)
             }
         }
-        if (!registry.register(state)) {
-            state.finish(Result.success(null))
-            return
-        }
-        try {
-            current.executor.execute {
-                try {
-                    val result = produce(state, assetId, width.toInt(), height.toInt(), isVideo, originalDecodeAbove.toInt())
-                    registry.remove(requestId)
-                    state.deliver(result, NativeBuffer::free)
-                } catch (t: Throwable) {
-                    // An uncaught error on a pool thread would kill the
-                    // process; a request must still get its one reply.
-                    registry.remove(requestId)
-                    state.finish(Result.failure(NativeImageError("decode_failed", t.toString())))
-                }
+        current.pipeline.start(state, assetId, width * height) {
+            when (val step = decoder.decode(assetId, width.toInt(), height.toInt(), isVideo, originalDecodeAbove.toInt())) {
+                is DecodeStep.Done -> DecodePipeline.Stage.Reply(reply(state, step.bitmap))
+                is DecodeStep.NeedsFrame -> DecodePipeline.Stage.Frame(
+                    large = step.large,
+                    finish = { reply(state, step.finish()) },
+                    abandon = step.abandon,
+                )
             }
-        } catch (_: Exception) {
-            registry.remove(requestId)
-            state.finish(Result.success(null))
         }
     }
 
     override fun cancelRequest(requestId: Long) {
-        registry.cancel(requestId)
+        val pipeline = attachment?.pipeline
+        if (pipeline != null) pipeline.cancel(requestId) else registry.cancel(requestId)
     }
 
-    private fun produce(
-        state: RequestState, assetId: String, width: Int, height: Int, isVideo: Boolean,
-        originalDecodeAbove: Int,
-    ): Result<NativeImageReply?> {
-        if (state.isCancelled) return Result.success(null)
-        val bitmap = try {
-            decoder.decode(assetId, width, height, isVideo, originalDecodeAbove)
-        } catch (e: NativeImageException) {
-            return Result.failure(NativeImageError(e.code, e.message))
+    override fun setPriorityAssets(assetIds: List<String>) {
+        val current = attachment ?: return
+        val set = assetIds.toSet()
+        current.decodeQueue.prefer(set)
+        current.frameQueue.prefer(set)
+    }
+
+    override fun setDecodeOrder(order: Long) {
+        val next = when (order) {
+            0L -> DecodeQueue.Order.REQUEST
+            1L -> DecodeQueue.Order.SMALLEST_FIRST
+            else -> return
         }
+        val current = attachment ?: return
+        current.decodeQueue.setOrder(next)
+        current.frameQueue.setOrder(next)
+    }
+
+    private fun reply(state: RequestState, bitmap: Bitmap): Result<NativeImageReply?> {
         if (state.isCancelled) {
             bitmap.recycle()
             return Result.success(null)

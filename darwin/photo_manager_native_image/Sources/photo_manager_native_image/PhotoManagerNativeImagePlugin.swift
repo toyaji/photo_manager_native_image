@@ -40,4 +40,10 @@ extension PhotoManagerNativeImagePlugin: NativeImageHostApi {
     func cancelRequest(requestId: Int64) throws {
         loader.cancel(requestId: requestId)
     }
+
+    /// The hint is not used on Apple platforms.
+    func setPriorityAssets(assetIds: [String]) throws {}
+
+    /// Apple platforms keep their own queue order.
+    func setDecodeOrder(order: Int64) throws {}
 }

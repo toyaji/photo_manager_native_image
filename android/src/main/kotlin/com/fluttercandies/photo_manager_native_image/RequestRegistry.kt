@@ -19,6 +19,16 @@ class RequestState(
     var isCancelled: Boolean = false
         private set
 
+    /** The decode-queue task, for taking it back on cancel. Main thread only. */
+    var queuedTask: Runnable? = null
+
+    /** The frame-stage task and what to release if it is taken back. Set by a worker, read on cancel. */
+    @Volatile
+    var frameTask: Runnable? = null
+
+    @Volatile
+    var frameAbandon: (() -> Unit)? = null
+
     val isDone: Boolean
         get() = synchronized(lock) { done }
 
@@ -87,7 +97,8 @@ class RequestRegistry {
         true
     }
 
-    fun cancel(requestId: Long) = synchronized(lock) {
+    /** Marks [requestId] cancelled and returns its state, or `null` if it has not arrived. */
+    fun cancel(requestId: Long): RequestState? = synchronized(lock) {
         val state = pending[requestId]
         if (state != null) {
             state.markCancelled()
@@ -99,6 +110,7 @@ class RequestRegistry {
             }
             cancelledAhead.add(requestId)
         }
+        state
     }
 
     fun remove(requestId: Long) = synchronized(lock) {

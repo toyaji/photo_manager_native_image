@@ -32,6 +32,15 @@ class RequestRegistryTest {
     }
 
     @Test
+    fun cancelReturnsTheArrivedStateOnly() {
+        val registry = RequestRegistry()
+        val s = state(4)
+        assertTrue(registry.register(s))
+        assertTrue(registry.cancel(4) === s)
+        assertTrue(registry.cancel(5) == null)
+    }
+
+    @Test
     fun cancelAheadOfRequestIsConsumedOnce() {
         val registry = RequestRegistry()
         registry.cancel(3)

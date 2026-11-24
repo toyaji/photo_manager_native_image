@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:photo_manager/photo_manager.dart';
 
+import 'android_decode_order.dart';
+import 'decode_hints.dart';
 import 'native_image_channel.dart';
 import 'native_image_request.dart';
 import 'native_image_stream_completer.dart';
@@ -47,6 +49,17 @@ class NativeImageProvider extends ImageProvider<NativeImageProvider> {
       entity.modifiedDateSecond ?? entity.createDateSecond ?? 0;
 
   bool get _isVideo => entity.type == AssetType.video;
+
+  /// The order in which Android starts waiting loads, for the whole app; the
+  /// last value set wins, so a screen that changes it should put the previous
+  /// value back when it goes away. [AndroidDecodeOrder.requestOrder] by
+  /// default. It can be set at any time, also before `runApp`: until the first
+  /// load it is only kept in Dart; from then on a change is sent at once and
+  /// re-orders the loads already waiting. Other platforms ignore it.
+  static AndroidDecodeOrder get androidDecodeOrder => DecodeHints.instance.order;
+
+  static set androidDecodeOrder(AndroidDecodeOrder value) =>
+      DecodeHints.instance.order = value;
 
   @override
   Future<NativeImageProvider> obtainKey(ImageConfiguration configuration) {

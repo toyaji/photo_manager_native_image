@@ -10,6 +10,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'decode_hints.dart';
 import 'native_image_channel.dart';
 import 'native_image_exception.dart';
 import 'native_image_metrics.dart';
@@ -179,6 +180,7 @@ class NativeImageRequest {
 
   Future<ui.FrameInfo?> _attempt({required bool allowNetwork}) async {
     _metrics.markRequested();
+    DecodeHints.instance.ensureSynced();
     _inFlight = true;
     final Map<String, int>? reply;
     try {

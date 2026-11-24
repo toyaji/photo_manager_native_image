@@ -154,6 +154,52 @@ NativeAssetImage(asset, size: 200, androidOriginalDecodeAbove: 0);
 
 Videos and iOS ignore it.
 
+### Decode order on Android
+
+Android starts waiting loads in the order they were requested. Two opt-in
+controls change that; other platforms ignore both.
+
+`NativeImageProvider.androidDecodeOrder` sets the order for the whole app; the
+last value set wins. `AndroidDecodeOrder.smallestThenNewest` starts the
+smallest load first and, among loads of the same pixel size, the newest first.
+It suits a grid that stacks a small placeholder and a sharp image in each cell:
+a fast scroll never leaves new cells blank behind the sharp layer of cells
+already scrolled past. A large load waits for as long as smaller ones keep
+arriving, so it does not suit a screen that shows one large image above many
+small ones. Set it for the whole app, or set it on the screen that needs it
+and put the previous value back when that screen goes away:
+
+```dart
+// In initState():
+_previousOrder = NativeImageProvider.androidDecodeOrder;
+NativeImageProvider.androidDecodeOrder = AndroidDecodeOrder.smallestThenNewest;
+// In dispose():
+NativeImageProvider.androidDecodeOrder = _previousOrder;
+```
+
+It can be set anywhere, also in `main()` before `runApp`. Until the first load
+it is only kept in Dart; from then on a change is sent at once and re-orders
+the loads already waiting.
+
+`AndroidDecodePriority` lets a screen name the assets it shows. With
+`requestOrder` their waiting loads start before every other waiting load; with
+`smallestThenNewest` only before other loads of the same pixel size. Create one
+per screen, update it on the first layout and whenever the visible cells
+change, and dispose it with the screen. Pass only the visible assets, since
+every change re-orders the waiting loads. The assets of every live instance
+count together, and an instance that is never disposed keeps its assets ahead.
+
+```dart
+final priority = AndroidDecodePriority();
+// On the first layout and whenever the visible cells change:
+priority.update(visibleAssets.map((a) => a.id));
+// In dispose():
+priority.dispose();
+```
+
+Updates that change nothing send nothing, so calling it from a scroll listener
+is fine.
+
 ### HDR photos
 
 `NativeAssetImage` shows 8-bit sRGB pixels, so the gain map of an Apple HDR
@@ -188,6 +234,8 @@ offline.
 | Type | Role |
 |---|---|
 | `NativeImageProvider(entity, size:, androidOriginalDecodeAbove:)` | The `ImageProvider`. Keyed by asset id, modified date, size and the Android threshold, so edited photos reload. |
+| `NativeImageProvider.androidDecodeOrder`, `AndroidDecodeOrder` | App-wide order in which Android starts waiting loads; request order by default. |
+| `AndroidDecodePriority` | Per-screen set of visible assets whose waiting loads start first (Android). |
 | `NativeAssetImage(entity, size:, ...)` | An `Image` with the same parameters and defaults as `AssetEntityImage`. |
 | `NativeAssetHdrView(entity, size:)` | Native view that draws the HDR version above a regular image. |
 | `NativeImageException`, `NativeImageErrorCode` | Typed failure passed to `errorBuilder`. |
@@ -202,7 +250,9 @@ itself. The app decides:
 
 - **Which sizes exist** and how many requests are in flight (`cacheExtent`,
   prefetching, layout changes during a pinch). The package queues what it is
-  asked and cancels what is no longer needed; it does not throttle.
+  asked and cancels what is no longer needed; it does not throttle, except that
+  on Android frames of videos with more than 3840 × 2160 pixels are decoded one
+  at a time.
 - **The `ImageCache` budget.** The package uses `PaintingBinding.imageCache`
   and adds no cache of its own, in memory or on disk.
 - **Error and loading UI.**
@@ -220,8 +270,9 @@ Details: [ownership and internals](https://github.com/toyaji/photo_manager_nativ
 
 - Swift Package Manager builds need the `FlutterFramework` package, which
   `photo_manager` 3.12 builds against only from Flutter 3.44. On older Flutter
-  add `disable-swift-package-manager: true` under `flutter:` in the app's
-  `pubspec.yaml`.
+  turn it off for the app in `pubspec.yaml`: `disable-swift-package-manager:
+  true` under `flutter:` on Flutter 3.24–3.32, or `enable-swift-package-manager:
+  false` under `flutter: config:` from Flutter 3.35.
 - CI builds a new app against both minimums and current stable on every push.
 
 ## Not supported

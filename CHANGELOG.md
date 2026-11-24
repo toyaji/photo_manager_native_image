@@ -1,3 +1,27 @@
+## 0.1.2
+
+- Android: frames of videos with more than 3840 × 2160 pixels (DCI 4K and up),
+  by the size MediaStore records, are decoded one at a time; a video whose
+  size MediaStore does not know is decoded in parallel as before. Each video
+  frame load now reads that size once. A `MediaMetadataRetriever` frame holds a decoder
+  at the video's own size, so several such frames at once can take hundreds of
+  MB. Smaller videos, photos and system thumbnails are still decoded in
+  parallel. Folders of such videos fill more slowly.
+- Android: a request cancelled while it waits for a decode thread, or for the
+  frame thread above, is taken out and answered at once instead of when its
+  turn comes. While such a frame waits, only a small sample of the system
+  thumbnail is kept for the same-frame check, not the thumbnail itself. Decode threads are started when the engine attaches.
+- New `NativeImageProvider.androidDecodeOrder`. The default,
+  `AndroidDecodeOrder.requestOrder`, keeps the order of 0.1.1.
+  `AndroidDecodeOrder.smallestThenNewest` starts the smallest waiting load
+  first and, within a size, the newest, for grids that stack a small
+  placeholder under a sharp image.
+- New `AndroidDecodePriority`: a screen names the assets it shows so their
+  waiting loads start first within the decode order. Every live instance
+  counts. Android only.
+- Both settings are kept in Dart until the first load, then sent as they
+  change, so they can be set before `runApp` and survive a hot restart.
+
 ## 0.1.1
 
 - Android 10+: a video thumbnail smaller than the requested size is no longer

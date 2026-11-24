@@ -10,11 +10,14 @@ import android.provider.MediaStore
 import android.util.Size
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.fluttercandies.photo_manager_native_image.DecodeStep
 import com.fluttercandies.photo_manager_native_image.NativeImageDecoder
 import com.fluttercandies.photo_manager_native_image.ThumbnailMath
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -57,7 +60,7 @@ class VideoFrameSizeTest {
     }
 
     private fun assertSize(id: String, size: Int, landscape: Boolean) {
-        val bitmap = decoder.decode(id, size, size, isVideo = true, originalDecodeAbove = 256)
+        val bitmap = decoder.decodeBitmap(id, size, size, isVideo = true, originalDecodeAbove = 256)
         val d = "${bitmap.width}x${bitmap.height} for $size"
         assertEquals(d, size, minOf(bitmap.width, bitmap.height))
         assertEquals(d, landscape, bitmap.width > bitmap.height)
@@ -85,10 +88,49 @@ class VideoFrameSizeTest {
         val id = video("middle_differs.mp4")
         val thumbnail = greySquare(systemThumbnail(id.toLong()))
         listOf(96, 300, 400, 720, 1080).forEach { size ->
-            val bitmap = decoder.decode(id, size, size, isVideo = true, originalDecodeAbove = 256)
+            val bitmap = decoder.decodeBitmap(id, size, size, isVideo = true, originalDecodeAbove = 256)
             val d = "${bitmap.width}x${bitmap.height} for $size"
             assertEquals(d, size, minOf(bitmap.width, bitmap.height))
             assertTrue("$d is not the system thumbnail's frame", ThumbnailMath.sameFrame(thumbnail, greySquare(bitmap)))
+        }
+    }
+
+    /** MediaStore records the size of a 4096x2160 video, so its frame goes to the one-at-a-time stage. */
+    @Test
+    fun aVideoAboveUhdIsDecodedOnTheFrameStage() {
+        val id = video("dci_4k.mp4")
+        val step = decoder.decode(id, 1080, 1080, isVideo = true, originalDecodeAbove = 256)
+        assertTrue("expected a frame step, got $step", step is DecodeStep.NeedsFrame)
+        step as DecodeStep.NeedsFrame
+        assertTrue("4096x2160 is not marked large", step.large)
+        val bitmap = step.finish()
+        assertEquals("${bitmap.width}x${bitmap.height}", 1080, minOf(bitmap.width, bitmap.height))
+    }
+
+    /**
+     * A large frame that waits keeps only a comparison sample of the system thumbnail, so this
+     * checks it still lands on the thumbnail's frame (`middle_differs.mp4` at 4096x2160).
+     */
+    @Test
+    fun aLargeVideoStillShowsTheSystemThumbnailsFrame() {
+        val id = video("dci_4k_middle_differs.mp4")
+        val thumbnail = greySquare(systemThumbnail(id.toLong()))
+        val step = decoder.decode(id, 720, 720, isVideo = true, originalDecodeAbove = 256)
+        assumeTrue("the system thumbnail already covers 720 here", step is DecodeStep.NeedsFrame)
+        step as DecodeStep.NeedsFrame
+        assertTrue(step.large)
+        val bitmap = step.finish()
+        assertEquals("${bitmap.width}x${bitmap.height}", 720, minOf(bitmap.width, bitmap.height))
+        assertTrue("not the system thumbnail's frame", ThumbnailMath.sameFrame(thumbnail, greySquare(bitmap)))
+    }
+
+    @Test
+    fun aFullHdVideoStaysInTheParallelPool() {
+        val id = video("wide_1080p.mp4")
+        val step = decoder.decode(id, 1080, 1080, isVideo = true, originalDecodeAbove = 256)
+        if (step is DecodeStep.NeedsFrame) {
+            assertFalse("1920x1080 is marked large", step.large)
+            step.abandon()
         }
     }
 
