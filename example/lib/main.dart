@@ -14,7 +14,8 @@ import 'package:photo_manager_native_image/src/native_image_metrics.dart';
 
 void main() {
   // The grid asks each cell for a 128 px base layer and a sharp main layer.
-  NativeImageProvider.androidDecodeOrder = AndroidDecodeOrder.smallestThenNewest;
+  NativeImageProvider.androidDecodeOrder =
+      AndroidDecodeOrder.smallestThenNewest;
   runApp(const ExampleApp());
 }
 
@@ -450,30 +451,30 @@ class _GalleryPageState extends State<GalleryPage> with WidgetsBindingObserver {
           return false;
         },
         child: NotificationListener<ScrollNotification>(
-        onNotification: (ScrollNotification notification) {
-          if (notification.metrics.extentAfter < 600) {
-            _loadMore();
-          }
-          _updatePriority(notification.metrics, columns);
-          return false;
-        },
-        child: GridView.builder(
-          key: ValueKey<String>('${_mode.name}-$columns'),
-          controller: _scrollController,
-          physics: const NeverScrollableScrollPhysics(),
-          // Kept for Flutter < 3.42, where scrollCacheExtent does not exist.
-          // ignore: deprecated_member_use
-          cacheExtent: 600,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            mainAxisSpacing: 1,
-            crossAxisSpacing: 1,
-          ),
-          itemCount: _assets.length,
-          itemBuilder: (BuildContext context, int index) {
-            return _Cell(asset: _assets[index], dense: dense, mode: _mode);
+          onNotification: (ScrollNotification notification) {
+            if (notification.metrics.extentAfter < 600) {
+              _loadMore();
+            }
+            _updatePriority(notification.metrics, columns);
+            return false;
           },
-        ),
+          child: GridView.builder(
+            key: ValueKey<String>('${_mode.name}-$columns'),
+            controller: _scrollController,
+            physics: const NeverScrollableScrollPhysics(),
+            // Kept for Flutter < 3.42, where scrollCacheExtent does not exist.
+            // ignore: deprecated_member_use
+            cacheExtent: 600,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              mainAxisSpacing: 1,
+              crossAxisSpacing: 1,
+            ),
+            itemCount: _assets.length,
+            itemBuilder: (BuildContext context, int index) {
+              return _Cell(asset: _assets[index], dense: dense, mode: _mode);
+            },
+          ),
         ),
       ),
     );

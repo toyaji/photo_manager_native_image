@@ -36,10 +36,10 @@ class NativeAssetImage extends Image {
     super.isAntiAlias,
     super.filterQuality = FilterQuality.low,
   }) : super(
-          image: NativeImageProvider(
-            entity,
-            size: size,
-            androidOriginalDecodeAbove: androidOriginalDecodeAbove,
-          ),
-        );
+         image: NativeImageProvider(
+           entity,
+           size: size,
+           androidOriginalDecodeAbove: androidOriginalDecodeAbove,
+         ),
+       );
 }

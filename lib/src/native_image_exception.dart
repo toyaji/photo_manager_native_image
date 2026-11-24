@@ -19,10 +19,10 @@ enum NativeImageErrorCode {
 
 const Map<NativeImageErrorCode, String> _wireCodes =
     <NativeImageErrorCode, String>{
-  NativeImageErrorCode.notFound: 'not_found',
-  NativeImageErrorCode.icloudNotDownloaded: 'icloud_not_downloaded',
-  NativeImageErrorCode.decodeFailed: 'decode_failed',
-};
+      NativeImageErrorCode.notFound: 'not_found',
+      NativeImageErrorCode.icloudNotDownloaded: 'icloud_not_downloaded',
+      NativeImageErrorCode.decodeFailed: 'decode_failed',
+    };
 
 /// Thrown into the [ImageStream] (and so into `Image.errorBuilder`) when a
 /// thumbnail cannot be loaded.

@@ -22,9 +22,6 @@ object ThumbnailMath {
     /** Mean grey difference (0–255) below which two pictures show the same frame. */
     const val SAME_FRAME = 8.0
 
-    /** Shorter side of a `MINI_KIND` thumbnail (512x384) in the worst case. */
-    const val MINI_KIND_SHORTER = 384
-
     /** Decoded pixels are capped at this many target squares, so panoramas stay bounded. */
     const val MAX_PIXELS_IN_TARGET_SQUARES = 4
 
@@ -76,12 +73,16 @@ object ThumbnailMath {
 
     /**
      * Time of the frame a video thumbnail shows, as `ThumbnailUtils.createVideoThumbnail` picks
-     * it on API 29+: the sync frame closest to half the duration. Below API 29 the system
-     * thumbnail is the retriever's representative frame, which `-1` selects; so is a video
-     * without a duration.
+     * it: the sync frame closest to half the duration. Android 10 passes half the duration in
+     * milliseconds where microseconds belong, so its thumbnail is the sync frame near the start;
+     * Android 11 fixed the unit. A video without a duration gets the retriever's representative
+     * frame, which `-1` selects.
      */
-    fun videoFrameTimeUs(sdkInt: Int, durationMs: Long): Long =
-        if (sdkInt >= 29 && durationMs > 0) durationMs * 1000 / 2 else -1
+    fun videoFrameTimeUs(sdkInt: Int, durationMs: Long): Long = when {
+        durationMs <= 0 -> -1
+        sdkInt == 29 -> durationMs / 2
+        else -> durationMs * 1000 / 2
+    }
 
     /** Luma of ARGB pixels. */
     fun grey(pixels: IntArray): IntArray = IntArray(pixels.size) { i ->
@@ -116,29 +117,6 @@ object ThumbnailMath {
             sample *= 2
         }
         return sample
-    }
-
-    /**
-     * Degrees to apply to a pre-Q thumbnail whose source reports
-     * [rotationDegrees]. The framework sometimes already rotated the bitmap;
-     * a 90/270 rotation that already flipped the aspect is detected and
-     * skipped so it is never applied twice.
-     */
-    fun rotationToApply(
-        rotationDegrees: Int,
-        sourceWidth: Int,
-        sourceHeight: Int,
-        thumbWidth: Int,
-        thumbHeight: Int,
-    ): Int {
-        val normalized = ((rotationDegrees % 360) + 360) % 360
-        if (normalized == 0) return 0
-        if (normalized == 180) return 180
-        if (normalized != 90 && normalized != 270) return 0
-        if (sourceWidth <= 0 || sourceHeight <= 0 || sourceWidth == sourceHeight) return normalized
-        val sourceLandscape = sourceWidth > sourceHeight
-        val thumbLandscape = thumbWidth > thumbHeight
-        return if (sourceLandscape == thumbLandscape) normalized else 0
     }
 
     /**

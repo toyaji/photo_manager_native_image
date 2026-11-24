@@ -39,10 +39,12 @@ class ThumbnailMathTest {
 
     @Test
     fun videoFramesFollowTheSystemThumbnailRule() {
-        assertEquals(5_000_000L, ThumbnailMath.videoFrameTimeUs(29, 10_000L))
+        assertEquals(5_000_000L, ThumbnailMath.videoFrameTimeUs(30, 10_000L))
         assertEquals(1_500L, ThumbnailMath.videoFrameTimeUs(34, 3L))
-        assertEquals(-1L, ThumbnailMath.videoFrameTimeUs(28, 10_000L))
         assertEquals(-1L, ThumbnailMath.videoFrameTimeUs(34, 0L))
+        // Android 10 seeks to half the duration read as microseconds.
+        assertEquals(5_000L, ThumbnailMath.videoFrameTimeUs(29, 10_000L))
+        assertEquals(-1L, ThumbnailMath.videoFrameTimeUs(29, 0L))
     }
 
     @Test
@@ -62,30 +64,6 @@ class ThumbnailMathTest {
         assertEquals(2, ThumbnailMath.sampleSize(4000, 700, 320))
         assertEquals(8, ThumbnailMath.sampleSize(4000, 3000, 320))
         assertEquals(16, ThumbnailMath.sampleSize(8000, 6000, 320))
-    }
-
-    @Test
-    fun rotationIsAppliedToUnrotatedThumbnails() {
-        // Landscape source, landscape thumbnail, EXIF 90: still needs rotating.
-        assertEquals(90, ThumbnailMath.rotationToApply(90, 4000, 3000, 512, 384))
-        assertEquals(270, ThumbnailMath.rotationToApply(270, 4000, 3000, 512, 384))
-        assertEquals(180, ThumbnailMath.rotationToApply(180, 4000, 3000, 512, 384))
-        assertEquals(0, ThumbnailMath.rotationToApply(0, 4000, 3000, 512, 384))
-    }
-
-    @Test
-    fun rotationIsSkippedWhenThumbnailIsAlreadyUpright() {
-        // Landscape source, portrait thumbnail: the framework already rotated.
-        assertEquals(0, ThumbnailMath.rotationToApply(90, 4000, 3000, 384, 512))
-        assertEquals(0, ThumbnailMath.rotationToApply(270, 1920, 1080, 270, 480))
-    }
-
-    @Test
-    fun rotationFallsBackToMetadataForSquareOrUnknownSources() {
-        assertEquals(90, ThumbnailMath.rotationToApply(90, 1000, 1000, 100, 100))
-        assertEquals(90, ThumbnailMath.rotationToApply(90, 0, 0, 512, 384))
-        assertEquals(90, ThumbnailMath.rotationToApply(-270, 4000, 3000, 512, 384))
-        assertEquals(0, ThumbnailMath.rotationToApply(45, 4000, 3000, 512, 384))
     }
 
     @Test

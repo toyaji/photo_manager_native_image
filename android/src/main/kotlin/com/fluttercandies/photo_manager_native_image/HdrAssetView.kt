@@ -148,7 +148,7 @@ class HdrAssetView(
                 bitmap.recycle()
                 return
             }
-            val rotation = decoder.legacyImageMetadata(uri).third
+            val rotation = decoder.imageMetadata(uri).third
             val entry = HdrDecodeCache.Entry(bitmap, rotation, size)
             mainHandler.post { if (HdrDecodeCache.store(id.toString(), entry)) show(bitmap, rotation) }
         } catch (_: Exception) {

@@ -1,12 +1,10 @@
 package com.fluttercandies.photo_manager_native_image
 
 import android.annotation.SuppressLint
-import android.annotation.TargetApi
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.ColorSpace
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
@@ -48,13 +46,7 @@ class NativeImageDecoder(private val context: Context) {
             else MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             id,
         )
-        val step = mapErrors {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                decodeQ(uri, width, height, isVideo, originalDecodeAbove)
-            } else {
-                decodeLegacy(id, uri, width, height, isVideo)
-            }
-        }
+        val step = mapErrors { decodeQ(uri, width, height, isVideo, originalDecodeAbove) }
         return when (step) {
             is DecodeStep.Done -> DecodeStep.Done(fit(step.bitmap, width, height))
             is DecodeStep.NeedsFrame -> DecodeStep.NeedsFrame(
@@ -80,7 +72,6 @@ class NativeImageDecoder(private val context: Context) {
 
     // MARK: API 29+
 
-    @TargetApi(Build.VERSION_CODES.Q)
     private fun decodeQ(uri: Uri, width: Int, height: Int, isVideo: Boolean, originalDecodeAbove: Int): DecodeStep {
         var thumbnail: Bitmap? = null
         if (ThumbnailMath.triesSystemThumbnail(width, height, isVideo, originalDecodeAbove)) {
@@ -117,7 +108,6 @@ class NativeImageDecoder(private val context: Context) {
     }
 
     /** [frameOrThumbnail] for a thumbnail that was let go: it is read again only if the frame differs. */
-    @TargetApi(Build.VERSION_CODES.Q)
     private fun frameOrRereadThumbnail(uri: Uri, width: Int, height: Int, thumbnailGrey: IntArray): Bitmap {
         val frame = decodeVideoFrame(uri, width, height)
         if (ThumbnailMath.sameFrame(thumbnailGrey, greySquare(frame))) return frame
@@ -166,7 +156,6 @@ class NativeImageDecoder(private val context: Context) {
      * `ContentResolver.loadThumbnail` without its fit-inside-the-box sampling,
      * decoded straight to the target size in sRGB.
      */
-    @TargetApi(Build.VERSION_CODES.Q)
     private fun decodeSystemThumbnail(uri: Uri, width: Int, height: Int): Bitmap {
         val opts = Bundle().apply { putParcelable(ContentResolver.EXTRA_SIZE, Point(width, height)) }
         var orientation = 0
@@ -184,12 +173,10 @@ class NativeImageDecoder(private val context: Context) {
         return rotated
     }
 
-    @TargetApi(Build.VERSION_CODES.Q)
     private fun decodeOriginal(uri: Uri, width: Int, height: Int): Bitmap =
         decodeToTarget(ImageDecoder.createSource(resolver, uri), width, height)
 
     /** Flutter's raw image descriptor reads pixels as sRGB, so wide-gamut sources are converted. */
-    @TargetApi(Build.VERSION_CODES.Q)
     private fun decodeToTarget(source: ImageDecoder.Source, width: Int, height: Int): Bitmap =
         ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
@@ -199,58 +186,28 @@ class NativeImageDecoder(private val context: Context) {
                 ?.let { (w, h) -> decoder.setTargetSize(w, h) }
         }
 
-    // MARK: API 26–28
-
-    private fun decodeLegacy(id: Long, uri: Uri, width: Int, height: Int, isVideo: Boolean): DecodeStep {
-        val targetShorter = minOf(width, height)
-        return if (isVideo) decodeLegacyVideo(id, uri, width, height, targetShorter)
-        else DecodeStep.Done(decodeLegacyImage(id, uri, targetShorter))
-    }
-
-    /** MINI_KIND thumbnails already carry the rotation metadata on API 26–28. */
-    @Suppress("DEPRECATION")
-    private fun decodeLegacyVideo(id: Long, uri: Uri, width: Int, height: Int, targetShorter: Int): DecodeStep {
-        if (targetShorter <= ThumbnailMath.MINI_KIND_SHORTER) {
-            MediaStore.Video.Thumbnails.getThumbnail(resolver, id, MediaStore.Video.Thumbnails.MINI_KIND, null)?.let {
-                if (ThumbnailMath.coversTarget(it.width, it.height, width, height)) return DecodeStep.Done(it)
-                it.recycle()
-            }
-        }
-        return DecodeStep.NeedsFrame(
-            large = isLargeVideo(uri),
-            finish = { decodeVideoFrame(uri, width, height) },
-            abandon = {},
-        )
-    }
-
     /**
      * The picture the system thumbnail shows, sized from the video's own dimensions so the
-     * shorter side meets the target: on API 29+ the cover art if there is one, else the sync
-     * frame at half the duration, as `ThumbnailUtils` picks them. Retriever frames are upright.
+     * shorter side meets the target: the cover art if there is one, else the sync frame at
+     * half the duration, as `ThumbnailUtils` picks them. Retriever frames are upright.
      */
     private fun decodeVideoFrame(uri: Uri, width: Int, height: Int): Bitmap {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                retriever.embeddedPicture?.let { return decodeToTarget(ImageDecoder.createSource(ByteBuffer.wrap(it)), width, height) }
-            }
+            retriever.embeddedPicture?.let { return decodeToTarget(ImageDecoder.createSource(ByteBuffer.wrap(it)), width, height) }
             val timeUs = ThumbnailMath.videoFrameTimeUs(
                 Build.VERSION.SDK_INT,
                 retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L,
             )
-            val box = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                ThumbnailMath.videoFrameBox(
-                    retriever.intMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH),
-                    retriever.intMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT),
-                    retriever.intMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION),
-                    width,
-                    height,
-                )
-            } else {
-                null
-            }
-            val frame = if (box != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            val box = ThumbnailMath.videoFrameBox(
+                retriever.intMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH),
+                retriever.intMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT),
+                retriever.intMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION),
+                width,
+                height,
+            )
+            val frame = if (box != null) {
                 retriever.getScaledFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, box.first, box.second)
             } else {
                 retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
@@ -276,34 +233,10 @@ class NativeImageDecoder(private val context: Context) {
     private fun MediaMetadataRetriever.intMetadata(key: Int): Int =
         extractMetadata(key)?.toIntOrNull() ?: 0
 
-    /** Image thumbnails and BitmapFactory decodes ignore EXIF on API 26–28; MediaStore's orientation is applied. */
-    @Suppress("DEPRECATION")
-    private fun decodeLegacyImage(id: Long, uri: Uri, targetShorter: Int): Bitmap {
-        val (sourceWidth, sourceHeight, rotation) = legacyImageMetadata(uri)
-        val options = BitmapFactory.Options().apply {
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-            inPreferredColorSpace = SRGB
-        }
-        var bitmap: Bitmap? = null
-        if (targetShorter <= ThumbnailMath.MINI_KIND_SHORTER) {
-            bitmap = MediaStore.Images.Thumbnails.getThumbnail(resolver, id, MediaStore.Images.Thumbnails.MINI_KIND, options)
-        }
-        if (bitmap == null) {
-            bitmap = SampledBitmapDecoder.decode(resolver, uri, targetShorter)
-                ?: throw NativeImageException("decode_failed", "No thumbnail for $uri")
-        }
-        val degrees = ThumbnailMath.rotationToApply(rotation, sourceWidth, sourceHeight, bitmap.width, bitmap.height)
-        if (degrees == 0) return bitmap
-        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        if (rotated !== bitmap) bitmap.recycle()
-        return rotated
-    }
-
     /** `(width, height, rotationDegrees)` of an image as MediaStore reports it. */
     @SuppressLint("InlinedApi")
     @Suppress("DEPRECATION")
-    internal fun legacyImageMetadata(uri: Uri): Triple<Int, Int, Int> {
+    internal fun imageMetadata(uri: Uri): Triple<Int, Int, Int> {
         val projection = arrayOf(
             MediaStore.Images.ImageColumns.WIDTH,
             MediaStore.Images.ImageColumns.HEIGHT,

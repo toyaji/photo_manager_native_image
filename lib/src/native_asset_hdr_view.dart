@@ -24,7 +24,7 @@ import 'package:photo_manager/photo_manager.dart';
 class NativeAssetHdrView extends StatelessWidget {
   /// Creates a view that draws [entity] with its gain map, decoded to [size].
   const NativeAssetHdrView(this.entity, {super.key, required this.size})
-      : assert(size > 0);
+    : assert(size > 0);
 
   /// The image to draw. Must be an [AssetType.image].
   final AssetEntity entity;
@@ -58,27 +58,28 @@ class NativeAssetHdrView extends StatelessWidget {
       case TargetPlatform.android:
         platformView = PlatformViewLink(
           viewType: viewType,
-          surfaceFactory: (
-            BuildContext context,
-            PlatformViewController controller,
-          ) {
-            return AndroidViewSurface(
-              controller: controller as AndroidViewController,
-              gestureRecognizers: const <Factory<
-                  OneSequenceGestureRecognizer>>{},
-              hitTestBehavior: PlatformViewHitTestBehavior.transparent,
-            );
-          },
+          surfaceFactory:
+              (
+                BuildContext context,
+                PlatformViewController controller,
+              ) {
+                return AndroidViewSurface(
+                  controller: controller as AndroidViewController,
+                  gestureRecognizers:
+                      const <Factory<OneSequenceGestureRecognizer>>{},
+                  hitTestBehavior: PlatformViewHitTestBehavior.transparent,
+                );
+              },
           onCreatePlatformView: (PlatformViewCreationParams createParams) {
             return PlatformViewsService.initExpensiveAndroidView(
-              id: createParams.id,
-              viewType: viewType,
-              layoutDirection:
-                  Directionality.maybeOf(context) ?? TextDirection.ltr,
-              creationParams: params,
-              creationParamsCodec: const StandardMessageCodec(),
-              onFocus: () => createParams.onFocusChanged(true),
-            )
+                id: createParams.id,
+                viewType: viewType,
+                layoutDirection:
+                    Directionality.maybeOf(context) ?? TextDirection.ltr,
+                creationParams: params,
+                creationParamsCodec: const StandardMessageCodec(),
+                onFocus: () => createParams.onFocusChanged(true),
+              )
               ..addOnPlatformViewCreatedListener(
                 createParams.onPlatformViewCreated,
               )
