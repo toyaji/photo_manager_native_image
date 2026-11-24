@@ -61,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api-level: [26, 28, 34]
+        api-level: [29, 34]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -91,8 +91,8 @@ jobs:
           working-directory: ${{ env.PACKAGE_DIR }}/example/android
           script: ./gradlew :app:connectedDebugAndroidTest --console=plain
 
-  ios-cocoapods:
-    name: iOS build (CocoaPods) + XCTest
+  ios-swiftpm:
+    name: iOS build (Swift Package Manager) + XCTest
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -105,15 +105,13 @@ jobs:
       - name: Build example
         working-directory: ${{ env.PACKAGE_DIR }}/example
         run: |
-          flutter config --no-enable-swift-package-manager
-          # The committed lock would pass the check below without a pod install.
-          rm -f ios/Podfile.lock
+          # No config: Swift Package Manager must be on by default.
           flutter build ios --simulator --debug --no-codesign
-      - name: Check the plugin came through CocoaPods
+      - name: Check the plugin came through Swift Package Manager
         working-directory: ${{ env.PACKAGE_DIR }}/example/ios
         run: |
-          grep -q photo_manager_native_image Podfile.lock
-          ! grep -qs photo_manager_native_image Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift
+          grep -q photo_manager_native_image Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift
+          ! grep -qs photo_manager_native_image Podfile.lock
       - name: XCTest
         working-directory: ${{ env.PACKAGE_DIR }}/example/ios
         run: |
@@ -127,28 +125,6 @@ jobs:
             -destination "id=$UDID" -parallel-testing-enabled NO \
             -only-testing:RunnerTests CODE_SIGNING_ALLOWED=NO
 
-  ios-swiftpm:
-    name: iOS build (Swift Package Manager)
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
-        with:
-          channel: "stable"
-          cache: true
-      - name: Build example
-        working-directory: ${{ env.PACKAGE_DIR }}/example
-        run: |
-          flutter config --enable-swift-package-manager
-          flutter build ios --simulator --debug --no-codesign
-      - name: Check the plugin came through Swift Package Manager
-        working-directory: ${{ env.PACKAGE_DIR }}/example/ios
-        run: |
-          grep -q photo_manager_native_image Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift
-          ! grep -qs photo_manager_native_image Podfile.lock
-
   minimum-flutter:
     name: Minimum Flutter ${{ matrix.flutter }} (${{ matrix.mode }})
     runs-on: ${{ matrix.os }}
@@ -156,8 +132,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { flutter: "3.24.5", mode: apk, os: ubuntu-latest }
-          - { flutter: "3.24.5", mode: ios-cocoapods, os: macos-latest }
+          - { flutter: "3.44.0", mode: apk, os: ubuntu-latest }
           - { flutter: "3.44.0", mode: ios-swiftpm, os: macos-latest }
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

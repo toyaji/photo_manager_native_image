@@ -18,11 +18,10 @@ class NativeImageStreamCompleter extends ImageStreamCompleter
   /// Starts [load] immediately.
   NativeImageStreamCompleter({
     required Future<ui.FrameInfo?> Function() load,
-    required VoidCallback onCancel,
-    required VoidCallback onFailure,
+    required this._onCancel,
+    required this._onFailure,
     String? debugLabel,
-  })  : _onCancel = onCancel,
-        _onFailure = onFailure {
+  }) {
     this.debugLabel = debugLabel;
     _run(load);
   }

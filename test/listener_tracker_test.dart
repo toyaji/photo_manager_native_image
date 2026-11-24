@@ -12,7 +12,7 @@ class TrackedCompleter extends ImageStreamCompleter
   void onCancelRequested() => cancels++;
 }
 
-ImageStreamListener listener() => ImageStreamListener((_, __) {});
+ImageStreamListener listener() => ImageStreamListener((_, _) {});
 
 Future<ui.Image> makeImage() async {
   final ui.PictureRecorder recorder = ui.PictureRecorder();
@@ -47,29 +47,30 @@ void main() {
     expect(completer.cancels, 1);
   });
 
-  test('a cache listener detached synchronously is not a false cancel',
-      () async {
-    final TrackedCompleter fresh = TrackedCompleter();
-    final ImageStreamCompleterHandle handle = fresh.keepAlive();
-    fresh.setImage(ImageInfo(image: await makeImage()));
-    late ImageStreamListener cache;
-    cache = ImageStreamListener((_, bool sync) {
-      if (sync) {
-        fresh.removeListener(cache);
-      }
-    });
-    fresh.addListener(cache);
-    expect(fresh.cancels, 0);
-    expect(fresh.widgetListenerCount, 0);
-    final ImageStreamListener widget = listener();
-    fresh.addListener(widget);
-    fresh.removeListener(widget);
-    expect(fresh.cancels, 0);
-    handle.dispose();
-  });
-
   test(
-      'a widget listener added after the cache left is not mistaken '
+    'a cache listener detached synchronously is not a false cancel',
+    () async {
+      final TrackedCompleter fresh = TrackedCompleter();
+      final ImageStreamCompleterHandle handle = fresh.keepAlive();
+      fresh.setImage(ImageInfo(image: await makeImage()));
+      late ImageStreamListener cache;
+      cache = ImageStreamListener((_, bool sync) {
+        if (sync) {
+          fresh.removeListener(cache);
+        }
+      });
+      fresh.addListener(cache);
+      expect(fresh.cancels, 0);
+      expect(fresh.widgetListenerCount, 0);
+      final ImageStreamListener widget = listener();
+      fresh.addListener(widget);
+      fresh.removeListener(widget);
+      expect(fresh.cancels, 0);
+      handle.dispose();
+    },
+  );
+
+  test('a widget listener added after the cache left is not mistaken '
       'for the cache listener', () {
     final TrackedCompleter completer = TrackedCompleter();
     final ImageStreamListener cache = listener();

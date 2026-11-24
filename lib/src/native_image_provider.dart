@@ -27,8 +27,8 @@ class NativeImageProvider extends ImageProvider<NativeImageProvider> {
     this.entity, {
     required this.size,
     this.androidOriginalDecodeAbove = defaultAndroidOriginalDecodeAbove,
-  })  : assert(size > 0),
-        assert(androidOriginalDecodeAbove >= 0);
+  }) : assert(size > 0),
+       assert(androidOriginalDecodeAbove >= 0);
 
   /// Default for [androidOriginalDecodeAbove].
   static const int defaultAndroidOriginalDecodeAbove = 256;
@@ -56,7 +56,8 @@ class NativeImageProvider extends ImageProvider<NativeImageProvider> {
   /// default. It can be set at any time, also before `runApp`: until the first
   /// load it is only kept in Dart; from then on a change is sent at once and
   /// re-orders the loads already waiting. Other platforms ignore it.
-  static AndroidDecodeOrder get androidDecodeOrder => DecodeHints.instance.order;
+  static AndroidDecodeOrder get androidDecodeOrder =>
+      DecodeHints.instance.order;
 
   static set androidDecodeOrder(AndroidDecodeOrder value) =>
       DecodeHints.instance.order = value;
@@ -106,12 +107,12 @@ class NativeImageProvider extends ImageProvider<NativeImageProvider> {
 
   @override
   int get hashCode => Object.hash(
-        entity.id,
-        _modifiedDateSecond,
-        size,
-        _isVideo,
-        androidOriginalDecodeAbove,
-      );
+    entity.id,
+    _modifiedDateSecond,
+    size,
+    _isVideo,
+    androidOriginalDecodeAbove,
+  );
 
   @override
   String toString() =>

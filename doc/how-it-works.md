@@ -93,7 +93,7 @@ Very wide or tall images are also capped at `size² × 4` pixels, so a 1024
 request for an 8000 × 1000 panorama yields 5793 × 724 instead of the full
 32 MB bitmap.
 
-On Android 10 and later an image at or below `androidOriginalDecodeAbove`
+On Android an image at or below `androidOriginalDecodeAbove`
 (256 px by default) comes from the MediaStore system thumbnail, which is
 fast; above it the original is decoded, which is sharper but costs more per
 image. The system thumbnail is a recompressed JPEG and looks soft at larger
@@ -109,8 +109,8 @@ the requested size. MediaStore keeps one thumbnail per video, fitted in half
 the screen's shorter side, so when it covers the request it is used as is;
 otherwise the picture is decoded from the video at the requested size, chosen
 the way the system thumbnail is: the cover art if the video has one, else the
-sync frame nearest half the duration (API 29+; older versions use the
-retriever's representative frame, as their thumbnails do). If that picture
+sync frame nearest half the duration (on Android 10, the sync frame nearest
+the start, since Android 10 passes that time in the wrong unit). If that picture
 still differs from the system thumbnail, the thumbnail is kept, so one video
 never shows two pictures.
 

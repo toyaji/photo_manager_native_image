@@ -1,3 +1,25 @@
+## 0.2.0
+
+- **Breaking:** Android 10 (API 29) or later. The decode path for Android
+  8–9, which used `BitmapFactory` and `MINI_KIND` thumbnails, is removed. Pub
+  cannot see an app's `minSdk`, so an app below 29 must either set
+  `minSdk = 29` or pin `photo_manager_native_image: ^0.1.2`.
+- **Breaking:** iOS is built only through Swift Package Manager; the CocoaPods
+  podspec is removed, and the package now needs Flutter 3.44, the first stable
+  release with Swift Package Manager on by default. Apps on older Flutter keep
+  resolving to 0.1.x. An app that turns Swift Package Manager off
+  (`flutter: config: enable-swift-package-manager: false`) gets a build error
+  naming this plugin. Swift Package Manager is how Flutter
+  builds iOS plugins by default from 3.44, and keeping CocoaPods meant two iOS
+  integrations to build and test for the same sources.
+- Android 10: a video's thumbnail is decoded from the same frame as its system
+  thumbnail. Android 10 picks the sync frame near the start, not the middle,
+  so before this a request larger than the system thumbnail could show
+  another picture, or a soft one.
+- Nothing else changes from 0.1.2. 0.1.2 is the last 0.1.x release: later
+  fixes ship only in 0.2.x, so an app that needs them moves to Flutter 3.44
+  and Android 10.
+
 ## 0.1.2
 
 - Android: frames of videos with more than 3840 × 2160 pixels (DCI 4K and up),

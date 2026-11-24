@@ -45,8 +45,8 @@ NativeAssetImage(asset, size: 320, fit: BoxFit.cover);
 
 | | Android | iOS |
 |---|---|---|
-| Minimum version | API 26 | iOS 13 |
-| Decoder | `ImageDecoder` (API 29+), `BitmapFactory` (API 26–28) | `PHImageManager` + `vImage` |
+| Minimum version | API 29 (Android 10) | iOS 13 |
+| Decoder | `ImageDecoder` | `PHImageManager` + `vImage` |
 | JPEG round trips | 0 | 0 |
 
 macOS, web and desktop are not supported.
@@ -59,8 +59,13 @@ macOS, web and desktop are not supported.
 flutter pub add photo_manager photo_manager_native_image
 ```
 
-Flutter 3.24 or later is required. Building iOS with Swift Package Manager
-needs Flutter 3.44; on older Flutter keep the app on CocoaPods. See
+Flutter 3.44 or later is required. iOS is built only through Swift Package
+Manager. Apps on older Flutter stay on 0.1.2, the last 0.1.x release, which
+gets no further fixes.
+
+Android needs API 29. Flutter's default app `minSdk` is lower, so set it in
+`android/app/build.gradle.kts` (`minSdk = 29`); an app that must support
+older Android pins `photo_manager_native_image: ^0.1.2` instead. See
 [Requirements](#requirements).
 
 ### 2. Set up photo library access
@@ -263,17 +268,17 @@ Details: [ownership and internals](https://github.com/toyaji/photo_manager_nativ
 
 | | Minimum |
 |---|---|
-| Flutter | 3.24 (CocoaPods) / 3.44 (Swift Package Manager) |
-| Android | API 26 |
+| Flutter | 3.44 |
+| Android | API 29 (Android 10) |
 | iOS | 13 (HDR view: iOS 17, Android 14) |
 | `photo_manager` | 3.x |
 
-- Swift Package Manager builds need the `FlutterFramework` package, which
-  `photo_manager` 3.12 builds against only from Flutter 3.44. On older Flutter
-  turn it off for the app in `pubspec.yaml`: `disable-swift-package-manager:
-  true` under `flutter:` on Flutter 3.24–3.32, or `enable-swift-package-manager:
-  false` under `flutter: config:` from Flutter 3.35.
-- CI builds a new app against both minimums and current stable on every push.
+- The plugin has no CocoaPods podspec. An iOS app must leave Swift Package
+  Manager on (the default from Flutter 3.44, which `photo_manager` 3.12 also
+  needs for its `FlutterFramework` package). An app that turns it off
+  (`flutter: config: enable-swift-package-manager: false` in its
+  `pubspec.yaml`) gets a build error naming this plugin.
+- CI builds a new app against the minimum and current stable on every push.
 
 ## Not supported
 

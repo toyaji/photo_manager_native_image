@@ -41,32 +41,35 @@ void main() {
     return NativeImageProvider(entity(id: id), size: 32);
   }
 
-  test('removing the widget listener cancels and evicts the pending key',
-      () async {
-    final NativeImageProvider p = provider();
-    final ImageStream stream = p.resolve(ImageConfiguration.empty);
-    final ImageStreamListener widget = ImageStreamListener((_, __) {});
-    stream.addListener(widget);
-    await Future<void>.delayed(Duration.zero);
-    expect(channel.requested, hasLength(1));
-    expect(PaintingBinding.instance.imageCache.pendingImageCount, 1);
+  test(
+    'removing the widget listener cancels and evicts the pending key',
+    () async {
+      final NativeImageProvider p = provider();
+      final ImageStream stream = p.resolve(ImageConfiguration.empty);
+      final ImageStreamListener widget = ImageStreamListener((_, _) {});
+      stream.addListener(widget);
+      await Future<void>.delayed(Duration.zero);
+      expect(channel.requested, hasLength(1));
+      expect(PaintingBinding.instance.imageCache.pendingImageCount, 1);
 
-    stream.removeListener(widget);
-    expect(channel.cancelled, channel.requested);
-    expect(PaintingBinding.instance.imageCache.pendingImageCount, 0);
+      stream.removeListener(widget);
+      expect(channel.cancelled, channel.requested);
+      expect(PaintingBinding.instance.imageCache.pendingImageCount, 0);
 
-    channel.reply(channel.requested.single, allocateBuffer(4, 4));
-    await Future<void>.delayed(Duration.zero);
-    await Future<void>.delayed(Duration.zero);
-    expect(frees, 1);
-  });
+      channel.reply(channel.requested.single, allocateBuffer(4, 4));
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(frees, 1);
+    },
+  );
 
   test('a delivered image is kept in the cache', () async {
     final NativeImageProvider p = provider(id: 'b');
     final ImageStream stream = p.resolve(ImageConfiguration.empty);
     final Completer<ImageInfo> delivered = Completer<ImageInfo>();
-    final ImageStreamListener widget =
-        ImageStreamListener((ImageInfo info, _) => delivered.complete(info));
+    final ImageStreamListener widget = ImageStreamListener(
+      (ImageInfo info, _) => delivered.complete(info),
+    );
     stream.addListener(widget);
     await Future<void>.delayed(Duration.zero);
     channel.reply(channel.requested.single, allocateBuffer(4, 4));
@@ -83,7 +86,7 @@ void main() {
     final ImageStream stream = p.resolve(ImageConfiguration.empty);
     Object? error;
     final ImageStreamListener widget = ImageStreamListener(
-      (_, __) {},
+      (_, _) {},
       onError: (Object e, StackTrace? s) => error = e,
     );
     stream.addListener(widget);
@@ -129,20 +132,22 @@ void main() {
     received.dispose();
   });
 
-  test('imageCache.clear() while loading does not cancel a visible image',
-      () async {
-    final NativeImageProvider p = provider(id: 'd');
-    final ImageStream stream = p.resolve(ImageConfiguration.empty);
-    final Completer<ui.Image> delivered = Completer<ui.Image>();
-    final ImageStreamListener widget = ImageStreamListener(
-      (ImageInfo info, _) => delivered.complete(info.image),
-    );
-    stream.addListener(widget);
-    await Future<void>.delayed(Duration.zero);
-    PaintingBinding.instance.imageCache.clear();
-    expect(channel.cancelled, isEmpty);
-    channel.reply(channel.requested.single, allocateBuffer(4, 4));
-    await delivered.future.timeout(_imageTimeout);
-    stream.removeListener(widget);
-  });
+  test(
+    'imageCache.clear() while loading does not cancel a visible image',
+    () async {
+      final NativeImageProvider p = provider(id: 'd');
+      final ImageStream stream = p.resolve(ImageConfiguration.empty);
+      final Completer<ui.Image> delivered = Completer<ui.Image>();
+      final ImageStreamListener widget = ImageStreamListener(
+        (ImageInfo info, _) => delivered.complete(info.image),
+      );
+      stream.addListener(widget);
+      await Future<void>.delayed(Duration.zero);
+      PaintingBinding.instance.imageCache.clear();
+      expect(channel.cancelled, isEmpty);
+      channel.reply(channel.requested.single, allocateBuffer(4, 4));
+      await delivered.future.timeout(_imageTimeout);
+      stream.removeListener(widget);
+    },
+  );
 }

@@ -1,12 +1,12 @@
 package com.fluttercandies.example
 
 import android.content.ContentUris
+import android.content.ContentValues
 import android.graphics.Bitmap
 import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaScannerConnection
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Size
@@ -22,7 +22,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -33,31 +32,38 @@ class VideoFrameSizeTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext
     private val decoder = NativeImageDecoder(context)
-    private val created = mutableListOf<Pair<File, Uri>>()
+    private val created = mutableListOf<Uri>()
 
     @After
     fun tearDown() {
-        created.forEach { (file, uri) ->
-            context.contentResolver.delete(uri, null, null)
-            file.delete()
-        }
+        created.forEach { context.contentResolver.delete(it, null, null) }
     }
 
+    /** Inserts through MediaStore and waits for the scan, so WIDTH and HEIGHT are recorded. */
     private fun video(asset: String): String {
-        val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
-        dir.mkdirs()
-        val file = File(dir, "pmni_${System.nanoTime()}.mp4")
-        instrumentation.context.assets.open(asset).use { input ->
-            file.outputStream().use { input.copyTo(it) }
+        val resolver = context.contentResolver
+        val uri = resolver.insert(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, "pmni_${System.nanoTime()}.mp4")
+                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES)
+                put(MediaStore.Video.Media.IS_PENDING, 1)
+            },
+        )!!
+        created.add(uri)
+        resolver.openOutputStream(uri)!!.use { out ->
+            instrumentation.context.assets.open(asset).use { it.copyTo(out) }
+        }
+        resolver.update(uri, ContentValues().apply { put(MediaStore.Video.Media.IS_PENDING, 0) }, null, null)
+        @Suppress("DEPRECATION")
+        val path = resolver.query(uri, arrayOf(MediaStore.Video.Media.DATA), null, null, null)!!.use {
+            it.moveToFirst()
+            it.getString(0)
         }
         val latch = CountDownLatch(1)
-        var uri: Uri? = null
-        MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null) { _, scanned ->
-            uri = scanned
-            latch.countDown()
-        }
+        MediaScannerConnection.scanFile(context, arrayOf(path), null) { _, _ -> latch.countDown() }
         assertTrue("media scan timed out", latch.await(20, TimeUnit.SECONDS))
-        created.add(file to uri!!)
         return ContentUris.parseId(uri).toString()
     }
 
@@ -148,16 +154,9 @@ class VideoFrameSizeTest {
                 info.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).videoCapabilities?.isSizeSupported(width, height) == true
         }
 
-    @Suppress("DEPRECATION")
     private fun systemThumbnail(id: Long): Bitmap {
         val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            context.contentResolver.loadThumbnail(uri, Size(128, 128), null)
-        } else {
-            MediaStore.Video.Thumbnails.getThumbnail(
-                context.contentResolver, id, MediaStore.Video.Thumbnails.MINI_KIND, null,
-            )!!
-        }
+        return context.contentResolver.loadThumbnail(uri, Size(128, 128), null)
     }
 
     private fun greySquare(bitmap: Bitmap): IntArray {

@@ -40,20 +40,15 @@ part of the public API.
 
 | | Minimum | Checked in CI |
 |---|---|---|
-| Flutter | 3.24 | A new app built with 3.24.5 (APK, iOS through CocoaPods), and current stable |
-| iOS through Swift Package Manager | Flutter 3.44 | A new app built with 3.44.0, and current stable |
-| Android | API 26 | API 26, 28 and 34 emulators |
+| Flutter | 3.44 | A new app built with 3.44.0 (APK, and iOS through Swift Package Manager), and current stable |
+| Android | API 29 | API 29 and 34 emulators |
 | iOS | 13 | Simulator XCTest |
 
 - Call `PhotoManager.requestPermissionExtend()` before loading; the package
   does not request permission.
-- Swift Package Manager builds need Flutter 3.44: they depend on the
-  `FlutterFramework` package, which Flutter generates from 3.41, and
-  `photo_manager` 3.12.0 only builds against it from 3.44. On older Flutter,
-  keep the app on CocoaPods: `disable-swift-package-manager: true` under
-  `flutter:` in the app's `pubspec.yaml` on Flutter 3.24–3.32, or
-  `enable-swift-package-manager: false` under `flutter: config:` from 3.35.
-- Flutter 3.24 is the oldest version checked; an app built with it loads
-  photos and videos on Android 16 and iOS 18.
+- iOS is built only through Swift Package Manager (there is no podspec), so the
+  package needs Flutter 3.44: the build depends on the `FlutterFramework`
+  package, which Flutter generates from 3.41, and `photo_manager` 3.12.0 only
+  builds against it from 3.44. Apps on older Flutter resolve to 0.1.x.
 
 [← Back to README](https://github.com/toyaji/photo_manager_native_image/blob/main/README.md)

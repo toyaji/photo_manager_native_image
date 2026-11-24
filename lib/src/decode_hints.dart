@@ -57,7 +57,9 @@ class DecodeHints {
     }
     _synced = true;
     _send((NativeImageChannel c) => c.setDecodeOrder(_wire(_order)));
-    _send((NativeImageChannel c) => c.setPriorityAssets(_priorityAssets.toList()));
+    _send(
+      (NativeImageChannel c) => c.setPriorityAssets(_priorityAssets.toList()),
+    );
   }
 
   void _send(Future<void> Function(NativeImageChannel channel) call) {
@@ -74,9 +76,9 @@ class DecodeHints {
   }
 
   static int _wire(AndroidDecodeOrder order) => switch (order) {
-        AndroidDecodeOrder.requestOrder => 0,
-        AndroidDecodeOrder.smallestThenNewest => 1,
-      };
+    AndroidDecodeOrder.requestOrder => 0,
+    AndroidDecodeOrder.smallestThenNewest => 1,
+  };
 
   /// Forgets everything, as a hot restart does. For tests.
   void debugReset() {

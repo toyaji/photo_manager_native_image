@@ -5,19 +5,20 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:photo_manager_native_image/photo_manager_native_image.dart';
 
 AssetEntity _image({int modified = 0}) => AssetEntity(
-      id: 'a',
-      typeInt: AssetType.image.index,
-      width: 4032,
-      height: 3024,
-      modifiedDateSecond: modified,
-    );
+  id: 'a',
+  typeInt: AssetType.image.index,
+  width: 4032,
+  height: 3024,
+  modifiedDateSecond: modified,
+);
 
 List<MethodCall> _mockPlatformViews() {
   final List<MethodCall> creates = <MethodCall>[];
   final TestDefaultBinaryMessenger messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  messenger.setMockMethodCallHandler(SystemChannels.platform_views,
-      (MethodCall call) async {
+  messenger.setMockMethodCallHandler(SystemChannels.platform_views, (
+    MethodCall call,
+  ) async {
     if (call.method == 'create') {
       creates.add(call);
     }
@@ -58,8 +59,9 @@ void main() {
       await tester.pumpWidget(_host(NativeAssetHdrView(_image(), size: 2217)));
       await tester.pump();
 
-      final PlatformViewLink link =
-          tester.widget<PlatformViewLink>(find.byType(PlatformViewLink));
+      final PlatformViewLink link = tester.widget<PlatformViewLink>(
+        find.byType(PlatformViewLink),
+      );
       expect(link.viewType, 'photo_manager_native_image/hdr_view');
       expect(creates, hasLength(1));
       final Map<Object?, Object?> args =

@@ -89,16 +89,18 @@ void main() {
     expect(metrics.cancelled, 1);
   });
 
-  test('a buffer that arrives after cancel is still freed exactly once',
-      () async {
-    final NativeImageRequest r = request();
-    final Future<ui.FrameInfo?> future = r.load();
-    r.cancel();
-    channel.reply(r.requestId, allocateBuffer(8, 8));
-    expect(await future, isNull);
-    expect(frees, 1);
-    expect(metrics.liveBuffers, 0);
-  });
+  test(
+    'a buffer that arrives after cancel is still freed exactly once',
+    () async {
+      final NativeImageRequest r = request();
+      final Future<ui.FrameInfo?> future = r.load();
+      r.cancel();
+      channel.reply(r.requestId, allocateBuffer(8, 8));
+      expect(await future, isNull);
+      expect(frees, 1);
+      expect(metrics.liveBuffers, 0);
+    },
+  );
 
   test('cancel after settle is ignored', () async {
     final NativeImageRequest r = request();
@@ -123,11 +125,11 @@ void main() {
   test('platform errors map to typed codes', () async {
     for (final (String wire, NativeImageErrorCode code)
         in <(String, NativeImageErrorCode)>[
-      ('not_found', NativeImageErrorCode.notFound),
-      ('icloud_not_downloaded', NativeImageErrorCode.icloudNotDownloaded),
-      ('decode_failed', NativeImageErrorCode.decodeFailed),
-      ('something_else', NativeImageErrorCode.decodeFailed),
-    ]) {
+          ('not_found', NativeImageErrorCode.notFound),
+          ('icloud_not_downloaded', NativeImageErrorCode.icloudNotDownloaded),
+          ('decode_failed', NativeImageErrorCode.decodeFailed),
+          ('something_else', NativeImageErrorCode.decodeFailed),
+        ]) {
       final NativeImageRequest r = request();
       final Future<ui.FrameInfo?> future = r.load();
       channel.fail(r.requestId, wire);

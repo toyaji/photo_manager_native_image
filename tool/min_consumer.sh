@@ -2,7 +2,7 @@
 # Builds a new app that depends on this package by path, so CI can check the
 # minimum Flutter versions an app can use, without the package's own dev tools.
 #
-# usage: tool/min_consumer.sh apk | ios-cocoapods | ios-swiftpm
+# usage: tool/min_consumer.sh apk | ios-swiftpm
 set -e
 MODE=$1
 PKG=$(cd "$(dirname "$0")/.." && pwd)
@@ -10,10 +10,10 @@ NAME=$(sed -n 's/^name: *//p' "$PKG/pubspec.yaml")
 APP=${RUNNER_TEMP:-${TMPDIR:-/tmp}}/min_consumer
 
 case $MODE in
-  ios-cocoapods) flutter config --no-enable-swift-package-manager ;;
-  ios-swiftpm) flutter config --enable-swift-package-manager ;;
+  # Swift Package Manager is on by default from Flutter 3.44; the build checks it.
+  ios-swiftpm) ;;
   apk) ;;
-  *) echo "usage: $0 apk | ios-cocoapods | ios-swiftpm" >&2; exit 2 ;;
+  *) echo "usage: $0 apk | ios-swiftpm" >&2; exit 2 ;;
 esac
 flutter --version
 
@@ -39,20 +39,11 @@ if [ "$MODE" = apk ]; then
 fi
 
 sed -i.bak 's/IPHONEOS_DEPLOYMENT_TARGET = 1[0-2]\.0/IPHONEOS_DEPLOYMENT_TARGET = 13.0/' ios/Runner.xcodeproj/project.pbxproj
-if [ "$MODE" = ios-cocoapods ]; then
-  # The Podfile appears on the first build; give it the plugin's iOS 13 floor.
-  flutter build ios --simulator --debug --no-codesign --config-only
-  sed -i.bak "s/^# platform :ios.*/platform :ios, '13.0'/" ios/Podfile
-fi
 flutter build ios --simulator --debug --no-codesign
 
 # Fail unless the plugin went through the integration this job is named after.
 GENERATED=ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift
 in_swiftpm() { [ -f "$GENERATED" ] && grep -q "$NAME" "$GENERATED"; }
 in_cocoapods() { [ -f ios/Podfile.lock ] && grep -q "$NAME" ios/Podfile.lock; }
-if [ "$MODE" = ios-cocoapods ]; then
-  in_cocoapods && ! in_swiftpm || { echo "$NAME was not integrated through CocoaPods." >&2; exit 1; }
-else
-  in_swiftpm && ! in_cocoapods || { echo "$NAME was not integrated through Swift Package Manager." >&2; exit 1; }
-fi
+in_swiftpm && ! in_cocoapods || { echo "$NAME was not integrated through Swift Package Manager." >&2; exit 1; }
 echo "$NAME was integrated through ${MODE#ios-}."

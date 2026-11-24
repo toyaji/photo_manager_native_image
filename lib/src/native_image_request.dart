@@ -102,8 +102,8 @@ class NativeImageRequest {
     required this.androidOriginalDecodeAbove,
     NativeBufferFree? free,
     NativeImageMetrics? metrics,
-  })  : _free = free ?? debugNativeBufferFree ?? malloc.free,
-        _metrics = metrics ?? NativeImageMetrics.instance;
+  }) : _free = free ?? debugNativeBufferFree ?? malloc.free,
+       _metrics = metrics ?? NativeImageMetrics.instance;
 
   /// The channel the request goes through.
   final NativeImageChannel channel;
@@ -234,8 +234,11 @@ class NativeImageRequest {
     } finally {
       immutable.dispose();
     }
-    final ({int width, int height})? target =
-        resizeTargetFor(buffer.width, buffer.height, size);
+    final ({int width, int height})? target = resizeTargetFor(
+      buffer.width,
+      buffer.height,
+      size,
+    );
     // The codec reads through the descriptor, so both live until the frame
     // has been produced.
     final ui.FrameInfo frame;
